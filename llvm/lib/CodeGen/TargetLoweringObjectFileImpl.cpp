@@ -1649,7 +1649,6 @@ MCSection *TargetLoweringObjectFileCOFF::getSectionForConstant(
   return TargetLoweringObjectFile::getSectionForConstant(DL, Kind, C, Align);
 }
 
-
 //===----------------------------------------------------------------------===//
 //                                  Wasm
 //===----------------------------------------------------------------------===//
