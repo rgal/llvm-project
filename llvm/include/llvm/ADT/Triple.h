@@ -219,6 +219,7 @@ public:
     COFF,
     ELF,
     MachO,
+    Repo,
     Wasm,
   };
 
@@ -608,6 +609,11 @@ public:
   /// Tests whether the OS uses the COFF binary format.
   bool isOSBinFormatCOFF() const {
     return getObjectFormat() == Triple::COFF;
+  }
+
+  /// Tests whether we're producing output for a Program Repository.
+  bool isOSBinFormatRepo() const {
+    return getObjectFormat() == Triple::Repo;
   }
 
   /// Tests whether the environment is MachO.
