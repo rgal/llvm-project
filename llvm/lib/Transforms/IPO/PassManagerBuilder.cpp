@@ -933,9 +933,6 @@ void PassManagerBuilder::addLateLTOOptimizationPasses(
   // currently it damages debug info.
   if (MergeFunctions)
     PM.add(createMergeFunctionsPass());
-
-  if (ProgramRepository)
-    PM.add(createProgramRepositoryPass());
 }
 
 void PassManagerBuilder::populateThinLTOPassManager(
