@@ -13,6 +13,7 @@
 #include "llvm/MC/MCSymbol.h"
 
 namespace llvm {
+
 class MCSymbolRepo : public MCSymbol {
   /// An expression describing how to calculate the size of a symbol. If a
   /// symbol has no size this field will be NULL.
@@ -24,6 +25,7 @@ public:
 
   static bool classof(const MCSymbol *S) { return S->isRepo(); }
 };
-} // namespace llvm
+
+} // end namespace llvm
 
 #endif

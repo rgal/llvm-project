@@ -1,48 +1,3 @@
-#include <iomanip>
-#include <iostream>
-
-/// \brief A class used to save an iostream's formatting flags on construction
-/// and restore them on destruction.
-/// Normally used to manage the restoration of the flags on exit from a scope.
-class ios_flags_saver {
-public:
-  explicit ios_flags_saver(std::ios_base &stream)
-      : ios_flags_saver(stream, stream.flags()) {}
-  ios_flags_saver(std::ios_base &stream, std::ios_base::fmtflags const &flags)
-      : stream_(stream), flags_(flags) {}
-
-  // No copying or assignment.
-  ios_flags_saver(ios_flags_saver const &) = delete;
-  ios_flags_saver &operator=(ios_flags_saver const &) = delete;
-
-  ~ios_flags_saver() { stream_.flags(flags_); }
-
-private:
-  std::ios_base &stream_;
-  std::ios_base::fmtflags const flags_;
-};
-
-template <typename T> struct hex_proxy {
-  static_assert(std::is_unsigned<T>::value, "hex_proxy type must be unsigned");
-  hex_proxy(T const &v, unsigned d) : value(v), digits(d) {}
-  T const value;
-  unsigned const digits;
-};
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, hex_proxy<T> const &h) {
-  ios_flags_saver ifs(os);
-  return os << std::setw(h.digits) << std::setfill('0') << std::right
-            << std::hex << h.value;
-}
-
-template <typename T> inline hex_proxy<T> as_hex(T const &t) {
-  return hex_proxy<T>(t, sizeof(T) * 2);
-}
-
-inline hex_proxy<unsigned> as_hex(std::uint8_t t) { return {t, 2U}; }
-
-#include <iomanip>
 //===- lib/MC/RepoObjectWriter.cpp - Program Repository Writer-------------===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -56,6 +11,8 @@ inline hex_proxy<unsigned> as_hex(std::uint8_t t) { return {t, 2U}; }
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/MC/MCRepoObjectWriter.h"
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -68,7 +25,7 @@ inline hex_proxy<unsigned> as_hex(std::uint8_t t) { return {t, 2U}; }
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
-#include "llvm/MC/MCRepoObjectWriter.h"
+#include "llvm/MC/MCRepoFragment/MCRepoFragment.h"
 #include "llvm/MC/MCSectionRepo.h"
 #include "llvm/MC/MCSymbolRepo.h"
 #include "llvm/MC/MCValue.h"
@@ -79,6 +36,8 @@ inline hex_proxy<unsigned> as_hex(std::uint8_t t) { return {t, 2U}; }
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/StringSaver.h"
+#include <set>
+#include <string>
 #include <vector>
 
 using namespace llvm;
@@ -89,12 +48,15 @@ using namespace llvm;
 namespace {
 typedef DenseMap<const MCSectionRepo *, uint32_t> SectionIndexMapTy;
 
-
 class RepoObjectWriter : public MCObjectWriter {
   //  static uint64_t SymbolValue(const MCSymbol &Sym, const MCAsmLayout
-  //  &Layout); static bool isInSymtab(const MCAsmLayout &Layout, const
-  //  MCSymbolELF &Symbol,
+  //  &Layout);
+  //  static bool isInSymtab(const MCAsmLayout &Layout, const MCSymbolELF
+  //  &Symbol,
   //                         bool Used, bool Renamed);
+
+  // TODO: will be a set of strings in the repository.
+  std::set<std::string> Names;
 
   /// The target specific repository writer instance.
   std::unique_ptr<MCRepoObjectTargetWriter> TargetObjectWriter;
@@ -541,79 +503,74 @@ void RepoObjectWriter::writeRepoSectionData(const MCAssembler &Asm,
     }
 #endif
 
-  std::cout << "ID: " << Section.id() << "\n    ";
+  llvm::repo::SectionType St = llvm::repo::SectionType::Data;
+
+  std::cout << "ID: " << Section.id() << '\n';
   auto const kind = Section.getKind();
   if (kind.isBSS()) {
-    std::cout << "BSS";
+    St = llvm::repo::SectionType::BSS;
   } else if (kind.isCommon()) {
-    std::cout << "common";
+    St = llvm::repo::SectionType::Common;
   } else if (kind.isData()) {
-    std::cout << "data";
+    St = llvm::repo::SectionType::Data;
   } else if (kind.isReadOnlyWithRel()) {
-    std::cout << "relro";
+    St = llvm::repo::SectionType::RelRo;
   } else if (kind.isText()) {
-    std::cout << "text";
+    St = llvm::repo::SectionType::Text;
   } else if (kind.isMergeable1ByteCString()) {
-    std::cout << "Mergeable1ByteCString";
+    St = llvm::repo::SectionType::Mergeable1ByteCString;
   } else if (kind.isMergeable2ByteCString()) {
-    std::cout << "Mergeable2ByteCString";
+    St = llvm::repo::SectionType::Mergeable2ByteCString;
   } else if (kind.isMergeable4ByteCString()) {
-    std::cout << "Mergeable4ByteCString";
+    St = llvm::repo::SectionType::Mergeable4ByteCString;
   } else if (kind.isMergeableConst4()) {
-    std::cout << "MergeableConst4";
+    St = llvm::repo::SectionType::MergeableConst4;
   } else if (kind.isMergeableConst8()) {
-    std::cout << "MergeableConst8";
+    St = llvm::repo::SectionType::MergeableConst8;
   } else if (kind.isMergeableConst16()) {
-    std::cout << "MergeableConst16";
+    St = llvm::repo::SectionType::MergeableConst16;
   } else if (kind.isMergeableConst32()) {
-    std::cout << "MergeableConst32";
+    St = llvm::repo::SectionType::MergeableConst32;
   } else if (kind.isMergeableConst()) {
-    std::cout << "MergeableConst";
+    St = llvm::repo::SectionType::MergeableConst;
   } else if (kind.isReadOnly()) {
-    std::cout << "ReadOnly";
+    St = llvm::repo::SectionType::ReadOnly;
   } else if (kind.isThreadBSS()) {
-    std::cout << "ThreadBSS";
+    St = llvm::repo::SectionType::ThreadBSS;
   } else if (kind.isThreadData()) {
-    std::cout << "ThreadData";
+    St = llvm::repo::SectionType::ThreadData;
   } else if (kind.isThreadLocal()) {
-    std::cout << "ThreadLocal";
+    St = llvm::repo::SectionType::ThreadLocal;
   } else if (kind.isMetadata()) {
-    std::cout << "metadata";
+    St = llvm::repo::SectionType::Metadata;
   } else {
-    assert(false);
+    llvm_unreachable("Unknown section type in writeRepoSectionData");
   }
-  std::cout << ": ";
 
-  SmallVector<char, 128> RawData;
-  raw_svector_ostream VecOS(RawData);
+  llvm::repo::SectionContent Content{St};
+
+  // Add the section content to the fragment.
+  raw_svector_ostream VecOS{Content.Data};
   raw_pwrite_stream &OldStream = getStream();
-  setStream(VecOS);
+  this->setStream(VecOS);
   Asm.writeSectionData(&Section, Layout);
-  setStream(OldStream);
+  this->setStream(OldStream);
 
-  char const *separator = "";
-  for (unsigned c : RawData) {
-    std::cout << separator << as_hex(static_cast<std::uint8_t>(c & 0xFF));
-    separator = " ";
+  auto const &Relocs = Relocations[&Section];
+  Content.Xfixups.reserve(Relocs.size());
+  for (auto const &Relocation : Relocations[&Section]) {
+    // Insert the target symbol name into the set of known names.
+    auto It = Names.emplace(Relocation.Symbol->getName()).first;
+    // Attach a suitable external fixup to this section.
+    Content.Xfixups.push_back(repo::ExternalFixup{
+        It->c_str(), static_cast<std::uint8_t>(Relocation.Type),
+        Relocation.Offset, Relocation.Addend});
   }
-  std::cout << '\n';
 
-  auto const &fixups = Relocations[&Section];
-  char const *indent = "        ";
-  std::cout << indent << "External fixups:\n";
-  for (auto const &fixup : fixups) {
-    std::cout << indent << "offset: 0x"
-              << as_hex(fixup.Offset) // Where is the relocation.
-              << ", symbol: \"" << std::string{fixup.Symbol->getName()}
-              << '\"' // The symbol to relocate with.
-              << ", type: 0x" << as_hex(fixup.Type) << ", addend: 0x"
-              << as_hex(fixup.Addend) << '\n';
-    // const MCSymbolRepo *OriginalSymbol; // The original value of Symbol if we
-    // changed it. uint64_t OriginalAddend; // The original value of addend.
-  }
+  auto Fragment = llvm::repo::Fragment::make_unique(&Content, &Content + 1);
+  dbgs() << *Fragment;
 
 #if 0
-
   // Compressing debug_frame requires handling alignment fragments which is
   // more work (possibly generalizing MCAssembler.cpp:writeFragment to allow
   // for writing to arbitrary buffers) for little benefit.
