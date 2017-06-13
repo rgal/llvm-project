@@ -455,10 +455,13 @@ MCSectionCOFF *MCContext::getCOFFSection(StringRef Section,
   return Result;
 }
 
-MCSectionRepo *MCContext::getRepoSection(std::string const &Id, RepoSection K) {
+MCSectionRepo *
+MCContext::getRepoSection(std::string const &Id, RepoSection K,
+                          MCSectionRepo::DigestType const &Digest) {
 
   // Do the lookup, if we have a hit, return it.
-  RepoSectionKey key = std::make_pair(Id, K);
+  RepoSectionKey key =
+      std::make_pair(Id, K); // Fixme: use Digest instead of Id.
   auto IterBool = RepoUniquingMap.insert(std::make_pair(key, nullptr));
   auto Iter = IterBool.first;
   if (!IterBool.second) {
@@ -481,7 +484,7 @@ MCSectionRepo *MCContext::getRepoSection(std::string const &Id, RepoSection K) {
     break;
   }
 
-  auto Result = new MCSectionRepo(Kind, nullptr /*symbol*/, Id);
+  auto Result = new MCSectionRepo(Kind, nullptr /*symbol*/, Id, Digest);
   Iter->second = Result;
   return Result;
 }
