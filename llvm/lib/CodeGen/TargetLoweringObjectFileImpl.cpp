@@ -901,8 +901,7 @@ static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
                                                  const TargetMachine &TM) {
   // enum class RepoSection { TextSection, BSSSection };
   // MCSectionRepo *getRepoSection(RepoSection K);
-  std::string id =
-      GO->getGlobalIdentifier(); // TODO: use the digest, not the identifier.
+  std::string id = GO->getGlobalIdentifier();
 
   MCSectionRepo::DigestType const Digest = getDigest(GO);
 
