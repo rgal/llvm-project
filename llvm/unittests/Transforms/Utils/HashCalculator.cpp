@@ -52,14 +52,10 @@ public:
     return F1 == Fn;
   }
 
-  HashType getHash() {
-    MD5::MD5Result Result;
-    getHashResult(Result);
-    return Result;
-  }
+  HashType getHash() { return getHashResult(); }
 
   HashType testCalculate(Module &M) {
-    calculateFunctionHash(M);
+    calculateHash(M);
     return getHash();
   }
 

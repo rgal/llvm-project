@@ -443,6 +443,7 @@ void PassManagerBuilder::populateModulePassManager(
     }
 
     MPM.add(createProgramRepositoryPass());
+    MPM.add(createProgramRepositoryPruningPass());
 
     // FIXME: The BarrierNoopPass is a HACK! The inliner pass above implicitly
     // creates a CGSCC pass manager, but we don't want to add extensions into
@@ -558,6 +559,7 @@ void PassManagerBuilder::populateModulePassManager(
     MPM.add(createPartialInliningPass());
 
   MPM.add(createProgramRepositoryPass());
+  MPM.add(createProgramRepositoryPruningPass());
 
   if (OptLevel > 1 && !PrepareForLTO && !PrepareForThinLTO)
     // Remove avail extern fns and globals definitions if we aren't
