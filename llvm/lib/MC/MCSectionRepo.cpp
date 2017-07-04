@@ -19,7 +19,7 @@ MCSectionRepo::MCSectionRepo(SectionKind K, MCSymbol *Begin)
 }
 
 MCSectionRepo::MCSectionRepo(SectionKind K, MCSymbol *Begin, std::string id,
-                             DigestType Digest)
+                             Digest::DigestType Digest)
     : MCSection(SV_Repo, K, Begin), id_{std::move(id)},
       digest_{std::move(Digest)}, index_{++idx} {
   StringRef name = Begin == nullptr ? "<none>" : Begin->getName();

@@ -27,6 +27,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Digest.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalIFunc.h"
 #include "llvm/IR/GlobalObject.h"
@@ -3827,6 +3828,11 @@ struct MDSignedOrUnsignedField
   }
 };
 
+struct LinkageField : public MDUnsignedField {
+  LinkageField()
+      : MDUnsignedField(0, GlobalValue::LinkageTypes::CommonLinkage) {}
+};
+
 } // end anonymous namespace
 
 namespace llvm {
@@ -4220,6 +4226,11 @@ bool LLParser::ParseMDField(LocTy Loc, StringRef Name,
   Result.assign(*CSKind);
   Lex.Lex();
   return false;
+}
+
+template <>
+bool LLParser::ParseMDField(LocTy Loc, StringRef Name, LinkageField &Result) {
+  return ParseMDField(Loc, Name, static_cast<MDUnsignedField &>(Result));
 }
 
 } // end namespace llvm
@@ -4898,6 +4909,22 @@ bool LLParser::ParseDIImportedEntity(MDNode *&Result, bool IsDistinct) {
   Result = GET_OR_DISTINCT(
       DIImportedEntity,
       (Context, tag.Val, scope.Val, entity.Val, file.Val, line.Val, name.Val));
+  return false;
+}
+
+/// ParseTicketNode:
+///   ::= !TicketNode(name: "foo", digest: !0, linkage: 0)
+bool LLParser::ParseTicketNode(MDNode *&Result, bool IsDistinct) {
+#define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
+  REQUIRED(name, MDStringField, );                                             \
+  REQUIRED(digest, MDField, );                                                 \
+  REQUIRED(linkage, LinkageField, );
+  PARSE_MD_FIELDS();
+#undef VISIT_MD_FIELDS
+
+  Result = GET_OR_DISTINCT(
+      TicketNode, (Context, name.Val, dyn_cast<ConstantAsMetadata>(digest.Val),
+                   linkage.Val));
   return false;
 }
 

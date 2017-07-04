@@ -28,18 +28,15 @@ namespace llvm {
 // class MCSymbol;
 
 class MCSectionRepo : public MCSection {
-public:
-  using DigestType = Digest::DigestType;
-
 private:
   std::string id_;
-  DigestType digest_;
+  Digest::DigestType digest_;
   unsigned const index_;
 
   friend class MCContext;
   MCSectionRepo(SectionKind K, MCSymbol *Begin);
   MCSectionRepo(SectionKind K, MCSymbol *Begin, std::string id,
-                DigestType digest);
+                Digest::DigestType digest);
 
   void PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
                             raw_ostream &OS,
@@ -48,11 +45,11 @@ private:
   bool UseCodeAlign() const override { return false; }
   bool isVirtualSection() const override { return false; }
 
-  //  void setSectionName(StringRef Name) { SectionName = Name; }
+  // void setSectionName(StringRef Name) { SectionName = Name; }
 
 public:
   std::string id() const { return id_; }
-  DigestType hash() const { return digest_; }
+  Digest::DigestType hash() const { return digest_; }
   virtual ~MCSectionRepo();
 
   static bool classof(const MCSection *S) { return S->getVariant() == SV_Repo; }

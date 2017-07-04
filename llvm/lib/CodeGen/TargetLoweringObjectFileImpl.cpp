@@ -847,7 +847,7 @@ static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
   // MCSectionRepo *getRepoSection(RepoSection K);
   std::string id = GO->getGlobalIdentifier();
 
-  MCSectionRepo::DigestType const Digest = Digest::get(GO);
+  Digest::DigestType const Digest = Digest::get(GO);
 
   // Repo: the repo sections are keyed off the gloval value. This gets us the
   // associated hash.
