@@ -710,8 +710,8 @@ bool TargetLoweringObjectFileELF::shouldPutJumpTableInFunctionSection(
 /// Given a mergeable constant with the specified size and relocation
 /// information, return a section that it should be placed in.
 MCSection *TargetLoweringObjectFileELF::getSectionForConstant(
-    const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    const DataLayout &DL, SectionKind Kind, const Constant *C, unsigned &Align,
+    const Function *F) const {
   if (Kind.isMergeableConst4() && MergeableConst4Section)
     return MergeableConst4Section;
   if (Kind.isMergeableConst8() && MergeableConst8Section)
@@ -841,15 +841,14 @@ MCSection *TargetLoweringObjectFileRepo::getExplicitSectionGlobal(
 
 static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
                                                  const GlobalObject *GO,
-                                                 SectionKind Kind,
-                                                 const TargetMachine &TM) {
+                                                 SectionKind Kind) {
   // enum class RepoSection { TextSection, BSSSection };
   // MCSectionRepo *getRepoSection(RepoSection K);
   std::string id = GO->getGlobalIdentifier();
 
   Digest::DigestType const Digest = Digest::get(GO);
 
-  // Repo: the repo sections are keyed off the gloval value. This gets us the
+  // Repo: the repo sections are keyed off the global value. This gets us the
   // associated hash.
   MCContext::RepoSection K;
   if (Kind.isText()) {
@@ -858,6 +857,16 @@ static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
     K = MCContext::RepoSection::BSSSection;
   } else if (Kind.isData()) {
     K = MCContext::RepoSection::DataSection;
+  } else if (Kind.isMergeableConst4()) {
+    K = MCContext::RepoSection::MergeableConst4Section;
+  } else if (Kind.isMergeableConst8()) {
+    K = MCContext::RepoSection::MergeableConst8Section;
+  } else if (Kind.isMergeableConst16()) {
+    K = MCContext::RepoSection::MergeableConst16Section;
+  } else if (Kind.isMergeableConst32()) {
+    K = MCContext::RepoSection::MergeableConst32Section;
+  } else if (Kind.isReadOnly()) {
+    K = MCContext::RepoSection::ReadOnlySection;
   } else {
     assert(0);
   }
@@ -920,7 +929,15 @@ MCSection *TargetLoweringObjectFileRepo::SelectSectionForGlobal(
   //        }
   //        EmitUniqueSection |= GV->hasComdat();
 
-  return selectRepoSectionForGlobal(getContext(), GO, Kind, TM);
+  return selectRepoSectionForGlobal(getContext(), GO, Kind);
+}
+
+/// Given a mergeable constant with the specified size and relocation
+/// information, return a section that it should be placed in.
+MCSection *TargetLoweringObjectFileRepo::getSectionForConstant(
+    const DataLayout &DL, SectionKind Kind, const Constant *C, unsigned &Align,
+    const Function *F) const {
+  return selectRepoSectionForGlobal(getContext(), F, Kind);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1121,8 +1138,8 @@ MCSection *TargetLoweringObjectFileMachO::SelectSectionForGlobal(
 }
 
 MCSection *TargetLoweringObjectFileMachO::getSectionForConstant(
-    const DataLayout &DL, SectionKind Kind, const Constant *C,
-    unsigned &Align) const {
+    const DataLayout &DL, SectionKind Kind, const Constant *C, unsigned &Align,
+    const Function *F) const {
   // If this constant requires a relocation, we have to put it in the data
   // segment, not in the text segment.
   if (Kind.isData() || Kind.isReadOnlyWithRel())
