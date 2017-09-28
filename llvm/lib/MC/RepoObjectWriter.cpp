@@ -36,8 +36,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/REPO.h"
 #include "llvm/Support/StringSaver.h"
 #include <set>
 #include <string>
@@ -46,6 +46,7 @@
 
 #include "pstore/transaction.hpp"
 #include "pstore_mcrepo/Fragment.h"
+#include "pstore_mcrepo/ticket.h"
 
 using namespace llvm;
 
@@ -82,9 +83,16 @@ class RepoObjectWriter : public MCObjectWriter {
            SmallVector<std::unique_ptr<pstore::repo::SectionContent>, 4>>
       Contents;
 
+  std::map<pstore::uuid, std::vector<pstore::repo::ticket_member>>
+      TicketContents;
+
   /// @}
   /// @name Symbol Table Data
   /// @{
+
+  repo::RepoObjectHeader Header;
+
+  StringRef OutputFile;
 
   BumpPtrAllocator Alloc;
   StringSaver VersionSymSaver{Alloc};
@@ -150,6 +158,8 @@ public:
   void writeSectionData(const MCAssembler &Asm, MCSection &Sec,
                         const MCAsmLayout &Layout, ModuleNamesContainer &Names);
 
+  void writeTicketNodes(const MCAssembler &Asm, ModuleNamesContainer &Names);
+
   bool isSymbolRefDifferenceFullyResolvedImpl(const MCAssembler &Asm,
                                               const MCSymbol &SymA,
                                               const MCFragment &FB, bool InSet,
@@ -165,16 +175,10 @@ RepoObjectWriter::~RepoObjectWriter() {}
 
 // Emit the ELF header.
 void RepoObjectWriter::writeHeader(const MCAssembler &Asm) {
-  // ELF Header
-  // ----------
-  //
-  // Note
-  // ----
-  // emitWord method behaves differently for ELF32 and ELF64, writing
-  // 4 bytes in the former and 8 in the latter.
-  REPO::RepoObjectHeader header;
-  writeBytes(header.RepoMagic);
-  writeBytes(header.uuid.str());
+  writeBytes(Header.RepoMagic);
+  writeBytes(
+      StringRef(reinterpret_cast<const char *>(Header.uuid.array().data()),
+                Header.uuid.elements));
 }
 
 #if 0
@@ -469,8 +473,7 @@ void svector_ostream<Container>::pwrite_impl(const char *Ptr, size_t Size,
   memcpy(OS_.data() + Offset, Ptr, Size);
 }
 
-
-}
+} // namespace
 
 void RepoObjectWriter::writeSectionData(const MCAssembler &Asm, MCSection &Sec,
                                         const MCAsmLayout &Layout,
@@ -557,6 +560,24 @@ void RepoObjectWriter::writeSectionData(const MCAssembler &Asm, MCSection &Sec,
   }
 }
 
+void RepoObjectWriter::writeTicketNodes(const MCAssembler &Asm,
+                                        ModuleNamesContainer &Names) {
+  // Record the TicketMember for this RepoSection.
+  auto &TC = TicketContents[Header.uuid];
+  for (const TicketNode *Ticket : Asm.getContext().getTickets()) {
+    auto It = Names
+                  .insert(std::make_pair(Ticket->getNameAsString(),
+                                         pstore::address::null()))
+                  .first;
+    auto NamePtr = reinterpret_cast<std::uintptr_t>(&(*It));
+    TC.push_back(pstore::repo::ticket_member{
+        pstore::index::uint128{Ticket->getDigest().high(),
+                               Ticket->getDigest().low()},
+        {NamePtr},
+        static_cast<uint8_t>(Ticket->getLinkage()),
+        Ticket->isComdat()});
+  }
+}
 
 namespace {
 
@@ -566,95 +587,142 @@ pstore::database &getDatabase() {
     Repository.reset(new pstore::database("./clang.db", true /*writable*/));
   }
   return *Repository;
+}
+
+std::pair<pstore::database &, TransactionType &> getTransaction() {
+  pstore::database &Repository = getDatabase();
+  static auto Transaction = pstore::begin(Repository);
+  return {Repository, Transaction};
+}
+
+raw_ostream &operator<<(raw_ostream &OS, pstore::index::uint128 const &V) {
+  auto digitToHex = [](unsigned v) {
+    assert(v < 0x10);
+    return static_cast<char>(v + ((v < 10) ? '0' : 'a' - 10));
+  };
+
+  std::uint64_t const High = V.high();
+  for (int Shift = 64 - 4; Shift >= 0; Shift -= 4) {
+    OS << digitToHex((High >> Shift) & 0x0F);
   }
 
-  std::pair<pstore::database &, TransactionType &> getTransaction() {
-    pstore::database &Repository = getDatabase();
-    static auto Transaction = pstore::begin(Repository);
-    return {Repository, Transaction};
+  std::uint64_t const Low = V.low();
+  for (int Shift = 64 - 4; Shift >= 0; Shift -= 4) {
+    OS << digitToHex((Low >> Shift) & 0x0F);
+  }
+  return OS;
+}
+
+} // namespace
+
+void RepoObjectWriter::writeObject(MCAssembler &Asm,
+                                   const MCAsmLayout &Layout) {
+  // Write out the ticket file ...
+  writeHeader(Asm);
+  ModuleNamesContainer Names{100, StringHash};
+
+  raw_fd_ostream &TempStream = static_cast<raw_fd_ostream &>(getStream());
+
+  // Try to get the path from the file descriptor
+  SmallString<64> ResultPath;
+  std::error_code ErrorCode =
+      sys::fs::getPathFromOpenFD(TempStream.get_fd(), ResultPath);
+  if (ErrorCode) {
+    report_fatal_error(
+        "TicketNode: Invalid output file path: " + ErrorCode.message() + ".");
+  }
+  OutputFile = ResultPath.str();
+  dbgs() << "path: " << OutputFile << "\n";
+
+  for (MCSection &Sec : Asm) {
+    auto &Section = static_cast<MCSectionRepo &>(Sec);
+    writeSectionData(Asm, Section, Layout, Names);
   }
 
-  raw_ostream &operator<<(raw_ostream &OS, pstore::index::uint128 const &V) {
-    auto digitToHex = [](unsigned v) {
-      assert(v < 0x10);
-      return static_cast<char>(v + ((v < 10) ? '0' : 'a' - 10));
-    };
+  writeTicketNodes(Asm, Names);
 
-    std::uint64_t const High = V.high();
-    for (int Shift = 64 - 4; Shift >= 0; Shift -= 4) {
-      OS << digitToHex((High >> Shift) & 0x0F);
-    }
+  Names.insert(std::make_pair(OutputFile, pstore::address::null()));
 
-    std::uint64_t const Low = V.low();
-    for (int Shift = 64 - 4; Shift >= 0; Shift -= 4) {
-      OS << digitToHex((Low >> Shift) & 0x0F);
-    }
-    return OS;
+  std::pair<pstore::database &, TransactionType &> DbTransact =
+      getTransaction();
+  auto &Db = DbTransact.first;
+  auto &Transaction = DbTransact.second;
+
+  pstore::index::name_index *const NamesIndex = Db.get_name_index();
+  assert(NamesIndex);
+
+  // Insert the names from this module into the global name set.
+  for (ModuleNamesContainer::value_type &NameAddress : Names) {
+    dbgs() << "insert name: " << NameAddress.first << '\n';
+    pstore::index::name_index::iterator It =
+        NamesIndex->insert(Transaction, NameAddress.first).first;
+    NameAddress.second = It.get_address();
   }
 
-  } // namespace
+  pstore::index::digest_index *const DigestsIndex = Db.get_digest_index();
+  assert(DigestsIndex);
 
-  void RepoObjectWriter::writeObject(MCAssembler &Asm,
-                                     const MCAsmLayout &Layout) {
-    ModuleNamesContainer Names{100, StringHash};
+  for (auto &Content : Contents) {
+    auto const Key =
+        pstore::index::uint128{Content.first.high(), Content.first.low()};
+    if (DigestsIndex->find(Key) != DigestsIndex->end()) {
+      dbgs() << "fragment " << Key << " exists. skipping\n";
+    } else {
+      auto Begin = pstore::repo::details::makeSectionContentIterator(
+          Content.second.begin());
+      auto End = pstore::repo::details::makeSectionContentIterator(
+          Content.second.end());
 
-    for (MCSection &Sec : Asm) {
-      auto &Section = static_cast<MCSectionRepo &>(Sec);
-      writeSectionData(Asm, Section, Layout, Names);
+      // The name field of each of the external fixups is pointing into the
+      // 'Names' map. Here we turn that into the pstore address of the string.
+      std::for_each(Begin, End, [](pstore::repo::SectionContent &Section) {
+        for (auto &XFixup : Section.Xfixups) {
+          auto MNC = reinterpret_cast<ModuleNamesContainer::value_type const *>(
+              XFixup.Name.absolute());
+          XFixup.Name = MNC->second;
+        }
+      });
+
+      dbgs() << "fragment " << Key << " adding. size="
+             << pstore::repo::Fragment::sizeBytes(Begin, End) << '\n';
+
+      pstore::record FragmentRecord =
+          pstore::repo::Fragment::alloc(Transaction, Begin, End);
+      auto Kvp = std::make_pair(Key, FragmentRecord);
+      DigestsIndex->insert(Transaction, Kvp);
+    }
+  }
+
+  pstore::index::ticket_index *const TicketIndex = Db.get_ticket_index();
+  assert(TicketIndex);
+
+  // Find the store addres of output file path.
+  auto It = Names.find(OutputFile);
+  assert(It != Names.end() && "Output file can't be found!");
+  auto OutputPathAddr = It->second;
+
+  for (auto &TicketContent : TicketContents) {
+
+    dbgs() << "Ticket uuid " << TicketContent.first.str() << " adding. \n";
+
+    // The name field of each of ticket_member is pointing into the 'Names' map.
+    // Here we turn that into the pstore address of the string.
+    for (auto &TicketMember : TicketContent.second) {
+      auto MNC = reinterpret_cast<ModuleNamesContainer::value_type const *>(
+          TicketMember.name.absolute());
+      TicketMember.name = MNC->second;
+      dbgs() << "ticket name " << TicketMember.name.absolute() << " digest "
+             << TicketMember.digest << " adding." << '\n';
     }
 
-    std::pair<pstore::database &, TransactionType &> DbTransact =
-        getTransaction();
-    auto &Db = DbTransact.first;
-    auto &Transaction = DbTransact.second;
+    // Store the Ticket into store.
+    pstore::record TicketRecord = pstore::repo::ticket::alloc(
+        Transaction, OutputPathAddr, TicketContent.second);
+    auto Kvp = std::make_pair(TicketContent.first, TicketRecord);
+    TicketIndex->insert(Transaction, Kvp);
+  }
 
-    pstore::index::name_index *const NamesIndex = Db.get_name_index();
-    assert(NamesIndex);
-
-    // Insert the names from this module into the global name set.
-    for (ModuleNamesContainer::value_type &NameAddress : Names) {
-      dbgs() << "insert name: " << NameAddress.first << '\n';
-      pstore::index::name_index::iterator It =
-          NamesIndex->insert(Transaction, NameAddress.first).first;
-      NameAddress.second = It.get_address();
-    }
-
-    pstore::index::digest_index *const DigestsIndex = Db.get_digest_index();
-    assert(DigestsIndex);
-
-    for (auto &Content : Contents) {
-      auto const Key =
-          pstore::index::uint128{Content.first.high(), Content.first.low()};
-      if (DigestsIndex->find(Key) != DigestsIndex->end()) {
-        dbgs() << "fragment " << Key << " exists. skipping\n";
-      } else {
-        auto Begin = pstore::repo::details::makeSectionContentIterator(
-            Content.second.begin());
-        auto End = pstore::repo::details::makeSectionContentIterator(
-            Content.second.end());
-
-        // The name field of each of the external fixups is pointing into the
-        // 'Names' map. Here we turn that into the pstore address of the string.
-        std::for_each(Begin, End, [](pstore::repo::SectionContent &Section) {
-          for (auto &XFixup : Section.Xfixups) {
-            auto MNC =
-                reinterpret_cast<ModuleNamesContainer::value_type const *>(
-                    XFixup.Name.absolute());
-            XFixup.Name = MNC->second;
-          }
-        });
-
-        dbgs() << "fragment " << Key << " adding. size="
-               << pstore::repo::Fragment::sizeBytes(Begin, End) << '\n';
-
-        pstore::record FragmentRecord =
-            pstore::repo::Fragment::alloc(Transaction, Begin, End);
-        auto Kvp = std::make_pair(Key, FragmentRecord);
-        DigestsIndex->insert(Transaction, Kvp);
-      }
-    }
-
-    Transaction.commit();
+  Transaction.commit();
 }
 
 bool RepoObjectWriter::isSymbolRefDifferenceFullyResolvedImpl(
