@@ -2186,6 +2186,7 @@ static void writeTicketNode(raw_ostream &Out, const TicketNode *DN,
   Printer.printMetadata("digest", DN->getDigestAsMD(),
                         /* ShouldSkipNull */ false);
   Printer.printInt("linkage", DN->getLinkage(), /*ShouldSkipZero*/ false);
+  Printer.printBool("isComdat", DN->isComdat());
   Out << ")";
 }
 
