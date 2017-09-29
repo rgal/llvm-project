@@ -1,4 +1,5 @@
-//===-- Digest.h - Program repository digest data structure. ---*- C++ -*-===//
+//===-- RepoTicket.h - Program repository digest data structure. -*- C++
+//-*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -11,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_IR_DIGEST_H
-#define LLVM_IR_DIGEST_H
+#ifndef LLVM_IR_REPO_TICKET_H
+#define LLVM_IR_REPO_TICKET_H
 
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Metadata.h"
@@ -165,4 +166,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_IR_DIGEST_H
+#endif // LLVM_IR_REPO_TICKET_H
