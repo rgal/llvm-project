@@ -115,7 +115,7 @@
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Transforms/Utils/HashCalculator.h"
+#include "llvm/Transforms/Utils/RepoHashCalculator.h"
 #include <algorithm>
 #include <cassert>
 #include <cinttypes>
@@ -1513,7 +1513,7 @@ bool AsmPrinter::doFinalization(Module &M) {
       MoreStack = new GlobalVariable(M, Ty, true, GlobalValue::ExternalLinkage,
                                      nullptr, "__morestack_addr");
       // Calculate the global varible MoreStack hash value.
-      VaribleHashCalculator GVHC{MoreStack};
+      VariableHashCalculator GVHC{MoreStack};
       GVHC.calculateHash(M);
       // Since the __morestack_addr for each module, the ModuleID need to be
       // considered in the Hash value.
