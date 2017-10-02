@@ -48,7 +48,7 @@ add_llvm_library(LLVMCore
   PassTimingInfo.cpp
   SafepointIRVerifier.cpp
   ProfileSummary.cpp
-  RepoDigest.cpp
+  RepoTicket.cpp
   Statepoint.cpp
   Type.cpp
   TypeFinder.cpp
