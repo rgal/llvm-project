@@ -20,7 +20,7 @@ add_llvm_library(LLVMTransformUtils
   FunctionImportUtils.cpp
   GlobalStatus.cpp
   GuardUtils.cpp
-  HashCalculator.cpp
+  RepoHashCalculator.cpp
   InlineFunction.cpp
   ImportedFunctionsInliningStatistics.cpp
   InstructionNamer.cpp
