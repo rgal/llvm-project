@@ -1614,6 +1614,7 @@ struct MDFieldPrinter {
   void printEmissionKind(StringRef Name, DICompileUnit::DebugEmissionKind EK);
   void printNameTableKind(StringRef Name,
                           DICompileUnit::DebugNameTableKind NTK);
+  void printLinkage(GlobalValue::LinkageTypes LT);
 };
 
 } // end anonymous namespace
@@ -1650,6 +1651,40 @@ void MDFieldPrinter::printString(StringRef Name, StringRef Value,
   Out << FS << Name << ": \"";
   printEscapedString(Value, Out);
   Out << "\"";
+}
+
+static const char *getLinkagePrintName(GlobalValue::LinkageTypes LT) {
+	switch (LT) {
+	case GlobalValue::ExternalLinkage:
+		return "";
+	case GlobalValue::PrivateLinkage:
+		return "private ";
+	case GlobalValue::InternalLinkage:
+		return "internal ";
+	case GlobalValue::LinkOnceAnyLinkage:
+		return "linkonce ";
+	case GlobalValue::LinkOnceODRLinkage:
+		return "linkonce_odr ";
+	case GlobalValue::WeakAnyLinkage:
+		return "weak ";
+	case GlobalValue::WeakODRLinkage:
+		return "weak_odr ";
+	case GlobalValue::CommonLinkage:
+		return "common ";
+	case GlobalValue::AppendingLinkage:
+		return "appending ";
+	case GlobalValue::ExternalWeakLinkage:
+		return "extern_weak ";
+	case GlobalValue::AvailableExternallyLinkage:
+		return "available_externally ";
+	}
+	llvm_unreachable("invalid linkage");
+}
+
+void MDFieldPrinter::printLinkage(GlobalValue::LinkageTypes LT) {
+  Out << FS << "linkage: ";
+  StringRef Linkage = StringRef(getLinkagePrintName(LT)).rtrim(' ');
+  Out << (Linkage.empty() ? "external" : Linkage);
 }
 
 static void writeMetadataAsOperand(raw_ostream &Out, const Metadata *MD,
@@ -2185,7 +2220,7 @@ static void writeTicketNode(raw_ostream &Out, const TicketNode *DN,
                       /* ShouldSkipNull */ false);
   Printer.printMetadata("digest", DN->getDigestAsMD(),
                         /* ShouldSkipNull */ false);
-  Printer.printInt("linkage", DN->getLinkage(), /*ShouldSkipZero*/ false);
+  Printer.printLinkage(DN->getLinkage());
   Printer.printBool("isComdat", DN->isComdat());
   Out << ")";
 }
