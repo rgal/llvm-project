@@ -45,9 +45,6 @@ class X86RepoMCAsmInfo : public MCAsmInfoRepo {
   /// translation unit doesn't have any trampolines that require an executable
   /// stack.
   MCSection *getNonexecutableStackSection(MCContext &Ctx) const override {
-    // if (!UsesNonexecutableStackSection)
-    //    return nullptr;
-    // return Ctx.getRepoSection(".note.GNU-stack", ELF::SHT_PROGBITS, 0);
     return nullptr;
   }
 

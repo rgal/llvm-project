@@ -15,7 +15,6 @@
 #include "llvm/MC/MCAsmInfoRepo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSectionRepo.h"
-//#include "llvm/Support/ELF.h"
 using namespace llvm;
 
 void MCAsmInfoRepo::anchor() {}

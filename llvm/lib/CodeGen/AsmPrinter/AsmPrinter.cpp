@@ -111,10 +111,10 @@
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
-// FIXME: Should move this header to Support directory??
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+// FIXME: Should move this header to Support directory??
 #include "llvm/Transforms/Utils/RepoHashCalculator.h"
 #include <algorithm>
 #include <cassert>
