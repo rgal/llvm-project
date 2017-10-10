@@ -142,10 +142,10 @@ public:
   TargetLoweringObjectFileRepo();
 
   MCSection *getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind,
-	  const TargetMachine &TM) const override;
+                                      const TargetMachine &TM) const override;
 
   MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
-	  const TargetMachine &TM) const override;
+                                    const TargetMachine &TM) const override;
 
   MCSection *getSectionForConstant(const DataLayout &DL, SectionKind Kind,
                                    const Constant *C, unsigned &Align,
@@ -186,7 +186,6 @@ public:
                          Mangler &Mang, const TargetMachine &TM) const override;
 #endif
 };
-
 
 class TargetLoweringObjectFileCOFF : public TargetLoweringObjectFile {
   mutable unsigned NextUniqueID = 0;
