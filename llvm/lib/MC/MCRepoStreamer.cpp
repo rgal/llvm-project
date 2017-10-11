@@ -22,9 +22,8 @@ MCRepoStreamer::~MCRepoStreamer() {}
 void MCRepoStreamer::ChangeSection(MCSection *Section,
                                    const MCExpr *Subsection) {
   MCSymbol *const beginSymbol = Section->getBeginSymbol();
-  std::string name =
-      (beginSymbol == nullptr) ? "<none>" : beginSymbol->getName();
-  std::cout << "Repo change section " << name << "\n";
+  StringRef name = (beginSymbol == nullptr) ? "<none>" : beginSymbol->getName();
+  std::cout << "Repo change section " << name.str() << "\n";
 
   this->MCObjectStreamer::ChangeSection(Section, Subsection);
 }
