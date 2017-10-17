@@ -73,9 +73,9 @@ bool ProgramRepositoryPruning::runOnModule(Module &M) {
   bool Changed = false;
   MDBuilder MDB(M.getContext());
 
-  static pstore::database Repository(
-      "./clang.db", true /*writable*/); // FIXME: share an instance with the
-                                        // repo-writer back-end!
+  // FIXME: share an instance with the repo-writer back-end!
+  static pstore::database Repository("./clang.db",
+                                     pstore::database::access_mode::writable);
 
   MDNode *MD = nullptr;
   pstore::index::digest_index *Digests = Repository.get_digest_index(false);
