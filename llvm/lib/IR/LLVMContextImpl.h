@@ -468,24 +468,21 @@ template <> struct MDNodeKeyImpl<TicketNode> {
   Metadata *Name;
   Metadata *Digest;
   GlobalValue::LinkageTypes Linkage;
-  bool IsComdat;
 
-  MDNodeKeyImpl(GlobalValue::LinkageTypes Linkage, bool IsComdat,
-                Metadata *Name, Metadata *Digest)
-      : Name(Name), Digest(Digest), Linkage(Linkage), IsComdat(IsComdat) {}
+  MDNodeKeyImpl(GlobalValue::LinkageTypes Linkage, Metadata *Name,
+                Metadata *Digest)
+      : Name(Name), Digest(Digest), Linkage(Linkage) {}
 
   MDNodeKeyImpl(const TicketNode *RHS)
       : Name(RHS->getNameAsMD()), Digest(RHS->getDigestAsMD()),
-        Linkage(RHS->getLinkage()), IsComdat(RHS->isComdat()) {}
+        Linkage(RHS->getLinkage()) {}
 
   bool isKeyOf(const TicketNode *RHS) const {
     return Name == RHS->getNameAsMD() && Digest == RHS->getDigestAsMD() &&
-           Linkage == RHS->getLinkage() && IsComdat == RHS->isComdat();
+           Linkage == RHS->getLinkage();
   }
 
-  unsigned getHashValue() const {
-    return hash_combine(Linkage, Name, Digest, IsComdat);
-  }
+  unsigned getHashValue() const { return hash_combine(Linkage, Name, Digest); }
 };
 
 template <> struct MDNodeSubsetEqualImpl<DIDerivedType> {
