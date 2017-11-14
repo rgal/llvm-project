@@ -163,7 +163,7 @@ SymbolTable<ELFT>::write(llvm::raw_ostream &OS) {
     writeRaw(OS, Symbol);
   }
   uint64_t const EndOffset = OS.tell();
-  return {StartOffset, EndOffset - StartOffset};
+  return std::make_tuple(StartOffset, EndOffset - StartOffset);
 }
 
 #endif // REPO2OBJ_ELF_SYMBOL_TABLE_H
