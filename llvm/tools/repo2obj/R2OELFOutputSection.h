@@ -70,21 +70,27 @@ public:
     /// \returns The number of ELF sections added by this OutputSection.
     std::size_t numSections() const;
 
+    /// Writes the section data, relocations, and creates the necessary section
+    /// header table entries.
+    ///
     /// \tparam OutputIt  An output iterator to which will be written one or
     /// more instance of the Elf_Shdr type. \param OS The binary output stream
     /// to which the contents of the output sections are written. \param
-    /// SectionNames \param NumSections  The number of sections emitted at the
-    /// time the function was called. \param OutShdr  An output iterator to
-    /// which will be written one or more instance of the Elf_Shdr type as the
-    /// write function creates sections in the output.
+    /// SectionNames \param OutShdr  An output iterator to which will be written
+    /// one or more instance of the Elf_Shdr type as the write function creates
+    /// sections in the output.
     template <typename OutputIt>
     OutputIt write(llvm::raw_ostream &OS, SectionNameStringTable &SectionNames,
-                   unsigned NumSections, OutputIt OutShdr);
+                   OutputIt OutShdr) const;
 
     pstore::repo::section_type getType() const { return std::get<0>(Id_); }
     unsigned getIndex() const {
       assert(Index_ != UnknownIndex);
       return static_cast<unsigned>(Index_);
+    }
+    void setIndex(unsigned Index) {
+      assert(Index != UnknownIndex && Index_ == UnknownIndex);
+      Index_ = Index;
     }
 
   private:
@@ -108,8 +114,9 @@ public:
 
     std::vector<Elf_Rela> Relocations_;
 
-    template <typename StringType>
-    static std::string relocationSectionName(StringType &&dataSectionName);
+    std::string dataSectionName(std::string SectionName,
+                                pstore::address DiscriminatorName) const;
+    std::string relocationSectionName(std::string const &BaseName) const;
 };
 
 inline std::string getString(pstore::database const &Db, pstore::address Addr) {
@@ -125,17 +132,16 @@ void OutputSection<ELFT>::append(pstore::repo::ticket_member const &TM,
                                  SymbolTable<ELFT> &Symbols) {
   using namespace llvm;
 
+  // FIXME: account for alignment
   Contributions_.emplace_back(SectionData);
-  // FIXME: this assumes that the section represents the fragment's one and only
-  // section. When we begin to generate multi-section fragments, this will need
-  // to be a little more sophisticated. We'll also need to be able to add
-  // non-database-resident names to the symbol table.
+
+  auto const ObjectSize = SectionData->data().size();
   DEBUG(dbgs() << "  generating relocations FROM " << getString(Db_, TM.name)
                << '\n');
-  Symbols.insertSymbol(TM.name, this, SectionSize_, TM.linkage);
+  Symbols.insertSymbol(TM.name, this, SectionSize_, ObjectSize, TM.linkage);
 
   auto const InitialSectionSize = SectionSize_;
-  SectionSize_ += SectionData->data().size(); // TODO: account for alignment
+  SectionSize_ += ObjectSize; // FIXME: account for alignment
 
   auto const &XFixups = SectionData->xfixups();
   for (pstore::repo::external_fixup const &Fixup : XFixups) {
@@ -150,7 +156,7 @@ void OutputSection<ELFT>::append(pstore::repo::ticket_member const &TM,
     Relocations_.push_back(Reloc);
   }
 
-  // TODO: the internal fixups.
+  // FIXME: what about the internal fixups?
 }
 
 template <typename ELFT> std::size_t OutputSection<ELFT>::numSections() const {
@@ -161,9 +167,8 @@ template <typename ELFT>
 template <typename OutputIt>
 OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
                                     SectionNameStringTable &SectionNames,
-                                    unsigned NumSections, OutputIt OutShdr) {
-  Index_ = NumSections;
-
+                                    OutputIt OutShdr) const {
+  assert(Index_ != UnknownIndex);
   auto const GroupFlag =
       IsLinkOnce_ ? Elf_Word(llvm::ELF::SHF_GROUP) : Elf_Word(0);
 
@@ -177,15 +182,13 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
 
   auto const &Attrs = details::SectionAttributes.find(this->getType());
   assert(Attrs != details::SectionAttributes.end());
-  std::string SectionName = Attrs->second.Name;
-  pstore::address const Discriminator = std::get<1>(Id_);
-  if (Discriminator != pstore::address::null()) {
-    SectionName += '.';
-    SectionName += getString(Db_, Discriminator);
-  }
-  DEBUG(llvm::dbgs() << "section " << SectionName << " index " << Index_
-                     << '\n');
   {
+    pstore::address const Discriminator = std::get<1>(Id_);
+    std::string const SectionName =
+        this->dataSectionName(Attrs->second.Name, Discriminator);
+    DEBUG(llvm::dbgs() << "section " << SectionName << " index " << Index_
+                       << '\n');
+
     Elf_Shdr SH;
     zero(SH);
     SH.sh_name = SectionNames.insert(SectionName);
@@ -194,7 +197,6 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
     SH.sh_offset = StartPos;
     SH.sh_size = SectionSize_;
     *(OutShdr++) = SH;
-    ++NumSections;
   }
 
   if (Relocations_.size() > 0) {
@@ -206,32 +208,40 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
     {
       Elf_Shdr RelaSH;
       zero(RelaSH);
-      RelaSH.sh_name = SectionNames.insert(relocationSectionName(SectionName));
+      RelaSH.sh_name =
+          SectionNames.insert(this->relocationSectionName(Attrs->second.Name));
       RelaSH.sh_type = llvm::ELF::SHT_RELA;
       RelaSH.sh_flags = llvm::ELF::SHF_INFO_LINK |
                         GroupFlag; // sh_info holds index of the target section.
       RelaSH.sh_offset = RelaStartPos;
       RelaSH.sh_size = RelocsSize;
       RelaSH.sh_link = SectionIndices::SymTab;
-      RelaSH.sh_info = NumSections - 1; // target
+      RelaSH.sh_info = Index_; // target section
       RelaSH.sh_entsize = sizeof(Elf_Rela);
       *(OutShdr++) = RelaSH;
-      NumSections++;
     }
   }
-  assert(NumSections > Index_ && NumSections - Index_ == this->numSections());
   return OutShdr;
 }
 
 template <typename ELFT>
-template <typename StringType>
 std::string
-OutputSection<ELFT>::relocationSectionName(StringType &&dataSectionName) {
-  static std::string Prefix = ".rela";
-  if (dataSectionName[0] == '.') {
-    return Prefix + dataSectionName;
+OutputSection<ELFT>::dataSectionName(std::string SectionName,
+                                     pstore::address DiscriminatorName) const {
+  if (DiscriminatorName != pstore::address::null()) {
+    SectionName += '.';
+    SectionName += getString(Db_, DiscriminatorName);
   }
-  return Prefix + "." + dataSectionName;
+  return SectionName;
+}
+
+template <typename ELFT>
+std::string
+OutputSection<ELFT>::relocationSectionName(std::string const &BaseName) const {
+  if (BaseName[0] == '.') {
+    return std::string{".rela"} + BaseName;
+  }
+  return std::string{".rela."} + BaseName;
 }
 
 #endif // LLVM_TOOLS_REPO2OBJ_ELFOUTPUTSECTION_H
