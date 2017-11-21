@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef REPO2OBJ_ELF_STRING_TABLE_H
-#define REPO2OBJ_ELF_STRING_TABLE_H
+#ifndef LLVM_TOOLS_REPO2OBJ_ELFSTRINGTABLE_H
+#define LLVM_TOOLS_REPO2OBJ_ELFSTRINGTABLE_H
 
 #include "pstore/database.hpp"
 #include "pstore/db_archive.hpp"
@@ -40,6 +40,7 @@ public:
 
 private:
   std::string getString(pstore::address Addr) const {
+    assert(Addr != pstore::address::null());
     using namespace pstore::serialize;
     archive::database_reader Source(Db_, Addr);
     return read<std::string>(Source);
@@ -84,6 +85,9 @@ std::uint64_t StringTable<T, Traits>::insert(T const &Name) {
   bool DidInsert;
   std::tie(Pos, DidInsert) = Strings_.emplace(Name, 0);
   if (DidInsert) {
+    DEBUG_WITH_TYPE("repo2obj",
+                    (llvm::dbgs() << "  strtab insert " << Policy_.get(Name)
+                                  << " at " << DataSize_ << '\n'));
     Pos->second = DataSize_;
     DataSize_ += Policy_.length(Name) + 1;
     Data_.push_back(Name);
@@ -113,4 +117,4 @@ StringTable<T, Traits>::write(llvm::raw_ostream &OS) const {
 
 using SectionNameStringTable = StringTable<std::string>;
 
-#endif // REPO2OBJ_ELF_STRING_TABLE_H
+#endif // LLVM_TOOLS_REPO2OBJ_ELFSTRINGTABLE_H
