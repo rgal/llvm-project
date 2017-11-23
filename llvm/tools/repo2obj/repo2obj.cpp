@@ -187,6 +187,7 @@ template <typename ELFT> void ELFState<ELFT>::initStandardSections() {
   // last local symbol (binding STB_LOCAL).
   SH.sh_info = 1;
   SH.sh_entsize = sizeof(ELFState<ELFT>::Elf_Sym);
+  SH.sh_addralign = alignof(ELFState<ELFT>::Elf_Sym);
   assert(SectionHeaders.size() == SectionIndices::SymTab);
   SectionHeaders.push_back(SH);
 }
@@ -216,6 +217,7 @@ template <typename ELFT> std::size_t ELFState<ELFT>::buildGroupSections() {
     SH.sh_info =
         Symbols.insertSymbol(G.first); // The group's signature symbol entry.
     SH.sh_entsize = sizeof(ELF::Elf32_Word);
+    SH.sh_addralign = alignof(ELF::Elf32_Word);
     SectionHeaders.push_back(SH);
   }
   return FirstGroupIndex;
@@ -251,6 +253,12 @@ void ELFState<ELFT>::writeGroupSections(raw_ostream &OS,
 LLVM_ATTRIBUTE_NORETURN static void error(Twine Message) {
   errs() << Message << "\n";
   exit(EXIT_FAILURE);
+}
+
+static std::string getString(pstore::database const &Db, pstore::address Addr) {
+  using namespace pstore::serialize;
+  archive::database_reader Source(Db, Addr);
+  return read<std::string>(Source);
 }
 
 int main(int argc, char *argv[]) {

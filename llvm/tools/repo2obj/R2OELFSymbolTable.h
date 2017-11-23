@@ -61,12 +61,16 @@ public:
   }
 
   /// If not already in the symbol table, an undef entry is created. This may be
-  /// later turned into a proper definition. \returns The index of the newly
-  /// created or pre-existing entry for this name in the symbol table.
+  /// later turned into a proper definition by a subsequent call to insertSymbol
+  /// with the same name. \param Name  The symbol name. \returns The index of
+  /// the newly created or pre-existing entry for this name in the symbol table.
   std::uint64_t insertSymbol(pstore::address Name) {
     return this->insertSymbol(Name, llvm::None);
   }
 
+  /// \returns A tuple of two values, the first of which is the file offset at
+  /// which the section data was written; the second is the number of bytes that
+  /// were written.
   std::tuple<std::uint64_t, std::uint64_t> write(llvm::raw_ostream &OS);
 
 private:
@@ -96,7 +100,6 @@ unsigned SymbolTable<ELFT>::linkageToELFBinding(pstore::repo::linkage_type L) {
 // FIXME: a temporary bodge. We don't sort the symbol table and don't correctly
 // set the sh_
 #if 0
-
     switch (L) {
     case pstore::repo::linkage_type::external:
     case pstore::repo::linkage_type::common:
