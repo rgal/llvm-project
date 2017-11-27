@@ -15,13 +15,13 @@ using namespace pstore::repo;
 namespace details {
 
 SectionMap const SectionAttributes{
-    {section_type::BSS,
+    {ELFSectionType::BSS,
      {".bss", ELF::SHT_NOBITS, ELF::SHF_ALLOC | ELF::SHF_WRITE}},
     // X (Common)
-    {section_type::Data,
+    {ELFSectionType::Data,
      {".data", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_WRITE}},
     // X (RelRo)
-    {section_type::Text,
+    {ELFSectionType::Text,
      {".text", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_EXECINSTR}},
     // X (Mergeable1ByteCString)
     // X (Mergeable2ByteCString)
@@ -31,15 +31,19 @@ SectionMap const SectionAttributes{
     // X (MergeableConst16)
     // X (MergeableConst32)
     // X (MergeableConst)
-    {section_type::ReadOnly, {".rodata", ELF::SHT_PROGBITS, ELF::SHF_ALLOC}},
-    {section_type::ThreadBSS,
+    {ELFSectionType::ReadOnly, {".rodata", ELF::SHT_PROGBITS, ELF::SHF_ALLOC}},
+    {ELFSectionType::ThreadBSS,
      {".tbss", ELF::SHT_NOBITS,
       ELF::SHF_ALLOC | ELF::SHF_WRITE | ELF::SHF_TLS}},
-    {section_type::ThreadData,
+    {ELFSectionType::ThreadData,
      {".tdata", ELF::SHT_PROGBITS,
       ELF::SHF_ALLOC | ELF::SHF_WRITE | ELF::SHF_TLS}},
     // X (ThreadLocal)
     // X (Metadata)
+    {ELFSectionType::InitArray,
+     {".init_array", ELF::SHT_INIT_ARRAY, ELF::SHF_ALLOC | ELF::SHF_WRITE}},
+    {ELFSectionType::FiniArray,
+     {".fini_array", ELF::SHT_FINI_ARRAY, ELF::SHF_ALLOC | ELF::SHF_WRITE}},
 };
 
 } // namespace details
