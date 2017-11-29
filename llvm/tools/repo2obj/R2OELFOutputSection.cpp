@@ -26,10 +26,14 @@ SectionMap const SectionAttributes{
     // X (Mergeable1ByteCString)
     // X (Mergeable2ByteCString)
     // X (Mergeable4ByteCString)
-    // X (MergeableConst4)
-    // X (MergeableConst8)
-    // X (MergeableConst16)
-    // X (MergeableConst32)
+    {ELFSectionType::MergeableConst4,
+     {".rodata.cst4", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_MERGE}},
+    {ELFSectionType::MergeableConst8,
+     {".rodata.cst8", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_MERGE}},
+    {ELFSectionType::MergeableConst16,
+     {".rodata.cst16", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_MERGE}},
+    {ELFSectionType::MergeableConst32,
+     {".rodata.cst32", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_MERGE}},
     // X (MergeableConst)
     {ELFSectionType::ReadOnly, {".rodata", ELF::SHT_PROGBITS, ELF::SHF_ALLOC}},
     {ELFSectionType::ThreadBSS,
