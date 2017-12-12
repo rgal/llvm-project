@@ -168,8 +168,7 @@ OutputSection<ELFT>::SectionInfo::symbol(SymbolTable<ELFT> &Symbols) {
                                    pstore::repo::linkage_type::internal);
 
     DEBUG(dbgs() << "  created symbol (" << Name
-                 << ") for internal fixup to section " << Section_->getIndex()
-                 << ". Index " << Symbol_ << '\n');
+                 << ") for internal fixup (index " << Symbol_ << ")\n");
 
     assert(Symbol_ != ELF::STN_UNDEF);
   }
