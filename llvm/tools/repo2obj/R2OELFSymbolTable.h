@@ -19,13 +19,11 @@
 #include <unordered_map>
 #include <vector>
 
-using SymbolNameStringTable = StringTable<pstore::address>;
-
 template <typename ELFT> class OutputSection;
 
 template <typename ELFT> class SymbolTable {
 public:
-  explicit SymbolTable(SymbolNameStringTable &Strings) : Strings_{Strings} {}
+  explicit SymbolTable(StringTable &Strings) : Strings_{Strings} {}
   SymbolTable(SymbolTable const &) = delete;
   SymbolTable &operator=(SymbolTable const &) = delete;
 
@@ -53,8 +51,7 @@ public:
   /// the object. \param Size  The object's size (in bytes). \param Linkage  The
   /// symbol's linkage. \returns The index of the newly created or pre-existing
   /// entry for this name in the symbol table.
-  std::uint64_t insertSymbol(pstore::address Name,
-                             OutputSection<ELFT> const *Section,
+  std::uint64_t insertSymbol(SString Name, OutputSection<ELFT> const *Section,
                              std::uint64_t Offset, std::uint64_t Size,
                              pstore::repo::linkage_type Linkage) {
     return this->insertSymbol(Name,
@@ -65,7 +62,7 @@ public:
   /// later turned into a proper definition by a subsequent call to insertSymbol
   /// with the same name. \param Name  The symbol name. \returns The index of
   /// the newly created or pre-existing entry for this name in the symbol table.
-  std::uint64_t insertSymbol(pstore::address Name) {
+  std::uint64_t insertSymbol(SString Name) {
     return this->insertSymbol(Name, llvm::None);
   }
 
@@ -77,7 +74,7 @@ public:
 private:
   static unsigned linkageToELFBinding(pstore::repo::linkage_type L);
   static unsigned sectionToSymbolType(ELFSectionType T);
-  std::uint64_t insertSymbol(pstore::address Name,
+  std::uint64_t insertSymbol(SString Name,
                              llvm::Optional<SymbolTarget> const &Target);
 
   typedef typename llvm::object::ELFFile<ELFT>::Elf_Sym Elf_Sym;
@@ -91,9 +88,9 @@ private:
   // FIXME: Vector is rather likely to be inefficient for the symbol table.
   // Refactoring?
   std::vector<Value> Symbols_;
-  std::unordered_map<pstore::address, uint64_t> SymbolMap_; // TODO: DenseMap?
+  std::unordered_map<SString, uint64_t> SymbolMap_; // TODO: DenseMap?
 
-  SymbolNameStringTable &Strings_;
+  StringTable &Strings_;
 };
 
 template <typename ELFT>
@@ -145,7 +142,7 @@ unsigned SymbolTable<ELFT>::sectionToSymbolType(ELFSectionType T) {
 
 template <typename ELFT>
 std::uint64_t
-SymbolTable<ELFT>::insertSymbol(pstore::address Name,
+SymbolTable<ELFT>::insertSymbol(SString Name,
                                 llvm::Optional<SymbolTarget> const &Target) {
   typename decltype(SymbolMap_)::iterator Pos;
   bool DidInsert;
