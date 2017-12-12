@@ -64,9 +64,10 @@ StringTable::write(llvm::raw_ostream &OS) const {
   for (SString const &Name : Data_) {
     assert(OS.tell() - Start == this->position(Name));
     OS << llvm::StringRef{Name.data(), Name.length()} << '\0';
-
-    std::uint64_t End = OS.tell();
-    assert(End >= Start);
-    return std::make_tuple(Start, End - Start);
   }
-  // eof:R2OELFStringTable.cpp
+
+  std::uint64_t End = OS.tell();
+  assert(End >= Start);
+  return std::make_tuple(Start, End - Start);
+}
+// eof:R2OELFStringTable.cpp
