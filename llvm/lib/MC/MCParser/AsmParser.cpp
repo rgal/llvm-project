@@ -704,6 +704,8 @@ AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
     IsDarwin = true;
     break;
   case MCObjectFileInfo::IsELF:
+  // FIXME: need to create RepoAsmParser!
+  case MCObjectFileInfo::IsRepo:
     PlatformParser.reset(createELFAsmParser());
     break;
   case MCObjectFileInfo::IsWasm:
