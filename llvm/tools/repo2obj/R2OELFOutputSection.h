@@ -25,6 +25,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -66,9 +67,7 @@ public:
   OutputSection &operator=(OutputSection &&) noexcept = default;
 
   std::uint64_t contributionsSize() const { return SectionSize_; }
-  std::uint64_t relocationsSize() const {
-    return Relocations_.size() * sizeof(Elf_Rela);
-  }
+  std::uint64_t numRelocations() const { return Relocations_.size(); }
 
   /// This structure is used to provide the data necessary to create a symbol
   /// which references the first byte of each section contributed by a fragment.
@@ -78,14 +77,14 @@ public:
         : Section_{Section}, Offset_{Offset} {}
 
     OutputSection<ELFT> *section() { return Section_; }
-    /// Returns the index of the symbol associated with this section/offset,
-    /// creating it if necessary.
-    std::uint64_t symbol(SymbolTable<ELFT> &Symbols);
+    /// Returns the symbol associated with this section/offset, creating it if
+    /// necessary.
+    typename SymbolTable<ELFT>::Value *symbol(SymbolTable<ELFT> &Symbols);
 
   private:
     OutputSection<ELFT> *Section_ = nullptr;
     std::uint64_t Offset_ = 0;
-    std::uint64_t Symbol_ = llvm::ELF::STN_UNDEF;
+    typename SymbolTable<ELFT>::Value *Symbol_ = nullptr;
   };
 
   void append(pstore::repo::ticket_member const &TM, SectionPtr SectionData,
@@ -138,7 +137,21 @@ private:
   using Elf_Shdr = typename llvm::object::ELFFile<ELFT>::Elf_Shdr;
   using SymbolTarget = typename SymbolTable<ELFT>::SymbolTarget;
 
-  std::vector<Elf_Rela> Relocations_;
+  struct Relocation {
+    Relocation(typename SymbolTable<ELFT>::Value *Symbol_,
+               pstore::repo::relocation_type Type_, std::uint64_t Offset_,
+               std::uint64_t Addend_)
+        : Symbol{Symbol_}, Type{Type_}, Offset{Offset_}, Addend{Addend_} {
+      assert(Symbol != nullptr);
+    }
+
+    /// The symbol targeted by this relocation.
+    typename SymbolTable<ELFT>::Value *Symbol;
+    pstore::repo::relocation_type Type;
+    std::uint64_t Offset;
+    std::uint64_t Addend;
+  };
+  std::vector<Relocation> Relocations_;
 
   template <typename T> static T alignedBytes(T v, uint8_t align_shift) {
     auto align = T{1} << align_shift;
@@ -156,11 +169,11 @@ private:
 constexpr bool IsMips64EL = false;
 
 template <typename ELFT>
-std::uint64_t
+typename SymbolTable<ELFT>::Value *
 OutputSection<ELFT>::SectionInfo::symbol(SymbolTable<ELFT> &Symbols) {
   using namespace llvm;
-  if (Symbol_ == ELF::STN_UNDEF) {
-    static unsigned PrivateSymbolCount = 0;
+  if (Symbol_ == nullptr) {
+    static auto PrivateSymbolCount = 0U;
 
     auto Name =
         stringToSStringView(".LR" + std::to_string(PrivateSymbolCount++));
@@ -170,7 +183,7 @@ OutputSection<ELFT>::SectionInfo::symbol(SymbolTable<ELFT> &Symbols) {
     DEBUG(dbgs() << "  created symbol (" << Name
                  << ") for internal fixup (index " << Symbol_ << ")\n");
 
-    assert(Symbol_ != ELF::STN_UNDEF);
+    assert(Symbol_ != nullptr);
   }
   return Symbol_;
 }
@@ -213,32 +226,22 @@ void OutputSection<ELFT>::append(pstore::repo::ticket_member const &TM,
                        TM.linkage);
 
   for (pstore::repo::external_fixup const &XFixup : SectionData->xfixups()) {
-    auto TargetName = getString(Db_, XFixup.name);
-    std::uint64_t const SymbolIndex = Symbols.insertSymbol(TargetName);
-    DEBUG(dbgs() << "  generating relocation TO '" << TargetName
-                 << "' symbol index " << SymbolIndex << '\n');
-
-    Elf_Rela Reloc;
-    Reloc.setSymbolAndType(SymbolIndex, XFixup.type, IsMips64EL);
-    Reloc.r_offset = XFixup.offset + SectionSize_;
-    Reloc.r_addend = XFixup.addend;
-    Relocations_.push_back(Reloc);
+    auto const TargetName = getString(Db_, XFixup.name);
+    DEBUG(dbgs() << "  generating relocation TO '" << TargetName << '\n');
+    Relocations_.emplace_back(Symbols.insertSymbol(TargetName), XFixup.type,
+                              XFixup.offset + SectionSize_, XFixup.addend);
   }
 
   for (pstore::repo::internal_fixup const &IFixup : SectionData->ifixups()) {
-    auto TargetSectionIndex = static_cast<
+    auto const TargetSectionIndex = static_cast<
         typename std::underlying_type<decltype(IFixup.section)>::type>(
         IFixup.section);
     assert(TargetSectionIndex >= 0 &&
            TargetSectionIndex < OutputSections.size());
     auto &TargetSection = OutputSections[TargetSectionIndex];
 
-    std::uint64_t SymbolIndex = TargetSection.symbol(Symbols);
-    Elf_Rela Reloc;
-    Reloc.setSymbolAndType(SymbolIndex, IFixup.type, IsMips64EL);
-    Reloc.r_offset = IFixup.offset + SectionSize_;
-    Reloc.r_addend = IFixup.addend;
-    Relocations_.push_back(Reloc);
+    Relocations_.emplace_back(TargetSection.symbol(Symbols), IFixup.type,
+                              IFixup.offset + SectionSize_, IFixup.addend);
   }
 
   SectionSize_ += ObjectSize;
@@ -295,11 +298,17 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
   }
 
   if (Relocations_.size() > 0) {
-    using RelocationType = typename decltype(Relocations_)::value_type;
-    writeAlignmentPadding<RelocationType>(OS);
+    writeAlignmentPadding<Elf_Rela>(OS);
     auto const RelaStartPos = OS.tell();
-    auto const RelocsSize = this->relocationsSize();
-    OS.write(reinterpret_cast<char const *>(Relocations_.data()), RelocsSize);
+
+    for (Relocation const &R : Relocations_) {
+      Elf_Rela Rel;
+      auto SymbolIndex = R.Symbol->Index;
+      Rel.setSymbolAndType(SymbolIndex, R.Type, IsMips64EL);
+      Rel.r_offset = R.Offset;
+      Rel.r_addend = R.Addend;
+      OS.write(reinterpret_cast<char const *>(&Rel), sizeof(Rel));
+    }
 
     Elf_Shdr RelaSH;
     zero(RelaSH);
@@ -309,11 +318,11 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
     RelaSH.sh_flags = llvm::ELF::SHF_INFO_LINK |
                       GroupFlag; // sh_info holds index of the target section.
     RelaSH.sh_offset = RelaStartPos;
-    RelaSH.sh_size = RelocsSize;
+    RelaSH.sh_size = Relocations_.size() * sizeof(Elf_Rela);
     RelaSH.sh_link = SectionIndices::SymTab;
     RelaSH.sh_info = Index_; // target section
-    RelaSH.sh_entsize = sizeof(RelocationType);
-    RelaSH.sh_addralign = alignof(RelocationType);
+    RelaSH.sh_entsize = sizeof(Elf_Rela);
+    RelaSH.sh_addralign = alignof(Elf_Rela);
     *(OutShdr++) = RelaSH;
   }
   return OutShdr;
