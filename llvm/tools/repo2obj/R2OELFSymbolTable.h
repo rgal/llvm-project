@@ -57,11 +57,19 @@ public:
     std::uint64_t NameOffset = 0;
     /// The location addressed by this symbol (if known).
     llvm::Optional<SymbolTarget> Target;
+    /// True if this symbol type is ELF::STT_TLS, otherwise is false.
+    bool IsTLS = false;
 
     std::uint64_t Index = llvm::ELF::STN_UNDEF;
   };
 
   using SymbolMapType = std::map<SString, Value>;
+
+  /// Find a symbol with name equivalent to Name in the symbol table.
+  /// \param Name  The symbol name.
+  /// \returns A pointer to pre-existing entry for this name in the symbol
+  /// table. If not found, return nullptr.
+  Value *findSymbol(SString Name);
 
   /// Creates a definition in the symbol table.
   /// \param Name  The symbol name.
@@ -76,36 +84,35 @@ public:
 
   /// If not already in the symbol table, an undef entry is created. This may be
   /// later turned into a proper definition by a subsequent call to insertSymbol
-  /// with the same name. \param Name  The symbol name. \returns A pointer to
-  /// the newly created or pre-existing entry for this name in the symbol table.
-  Value *insertSymbol(SString Name) {
-    return this->insertSymbol(Name, llvm::None);
-    }
+  /// with the same name. \param Name  The symbol name. \param Type  The symbol
+  /// relocation type. \returns A pointer to the newly created or pre-existing
+  /// entry for this name in the symbol table.
+  Value *insertSymbol(SString Name, pstore::repo::relocation_type Type);
 
-    /// \returns A tuple of two values, the first of which is the file offset at
-    /// which the section data was written; the second is the number of bytes
-    /// that were written.
-    std::tuple<std::uint64_t, std::uint64_t>
-    write(llvm::raw_ostream &OS, std::vector<Value *> const &OrderedSymbols);
+  /// \returns A tuple of two values, the first of which is the file offset at
+  /// which the section data was written; the second is the number of bytes that
+  /// were written.
+  std::tuple<std::uint64_t, std::uint64_t>
+  write(llvm::raw_ostream &OS, std::vector<Value *> const &OrderedSymbols);
 
-    /// As a side effect, sets the Index field on the symbol entries to allow
-    /// the index of any symbol to be quickly discovered. \note Don't insert any
-    /// symbols after calling this function!
-    std::vector<Value *> sort();
+  /// As a side effect, sets the Index field on the symbol entries to allow the
+  /// index of any symbol to be quickly discovered. \note Don't insert any
+  /// symbols after calling this function!
+  std::vector<Value *> sort();
 
-    static unsigned firstNonLocal(std::vector<Value *> const &OrderedSymbols);
+  static unsigned firstNonLocal(std::vector<Value *> const &OrderedSymbols);
 
-  private:
-    static unsigned linkageToELFBinding(pstore::repo::linkage_type L);
-    static unsigned sectionToSymbolType(ELFSectionType T);
+private:
+  static unsigned linkageToELFBinding(pstore::repo::linkage_type L);
+  static unsigned sectionToSymbolType(ELFSectionType T);
+  static bool isTLSRelocation(pstore::repo::relocation_type Type);
 
-    Value *insertSymbol(SString Name,
-                        llvm::Optional<SymbolTarget> const &Target);
+  Value *insertSymbol(SString Name, llvm::Optional<SymbolTarget> const &Target);
 
-    typedef typename llvm::object::ELFFile<ELFT>::Elf_Sym Elf_Sym;
+  typedef typename llvm::object::ELFFile<ELFT>::Elf_Sym Elf_Sym;
 
-    SymbolMapType SymbolMap_;
-    StringTable &Strings_;
+  SymbolMapType SymbolMap_;
+  StringTable &Strings_;
 };
 
 template <typename ELFT>
@@ -146,6 +153,30 @@ unsigned SymbolTable<ELFT>::sectionToSymbolType(ELFSectionType T) {
   }
 }
 
+template <typename ELFT>
+bool SymbolTable<ELFT>::isTLSRelocation(pstore::repo::relocation_type Type) {
+  switch (Type) {
+  case llvm::ELF::R_X86_64_DTPMOD64:
+  case llvm::ELF::R_X86_64_DTPOFF64:
+  case llvm::ELF::R_X86_64_TPOFF64:
+  case llvm::ELF::R_X86_64_TLSGD:
+  case llvm::ELF::R_X86_64_TLSLD:
+  case llvm::ELF::R_X86_64_DTPOFF32:
+  case llvm::ELF::R_X86_64_GOTTPOFF:
+  case llvm::ELF::R_X86_64_TPOFF32:
+    return true;
+  default:
+    return false;
+  }
+}
+
+// findSymbol
+// ~~~~~~~~~~
+template <typename ELFT>
+auto SymbolTable<ELFT>::findSymbol(SString Name) -> Value * {
+  auto Pos = SymbolMap_.find(Name);
+  return Pos != SymbolMap_.end() ? &Pos->second : nullptr;
+}
 
 // insertSymbol
 // ~~~~~~~~~~~~
@@ -155,7 +186,19 @@ auto SymbolTable<ELFT>::insertSymbol(SString Name,
                                      std::uint64_t Offset, std::uint64_t Size,
                                      pstore::repo::linkage_type Linkage)
     -> Value * {
-  return this->insertSymbol(Name, SymbolTarget(Section, Offset, Size, Linkage));
+  auto SV =
+      this->insertSymbol(Name, SymbolTarget(Section, Offset, Size, Linkage));
+  SV->IsTLS = sectionToSymbolType(Section->getType()) == llvm::ELF::STT_TLS;
+  return SV;
+}
+
+template <typename ELFT>
+auto SymbolTable<ELFT>::insertSymbol(SString Name,
+                                     pstore::repo::relocation_type Type)
+    -> Value * {
+  auto SV = this->insertSymbol(Name, llvm::None);
+  SV->IsTLS = isTLSRelocation(Type);
+  return SV;
 }
 
 template <typename ELFT>
@@ -205,14 +248,16 @@ SymbolTable<ELFT>::write(llvm::raw_ostream &OS,
     if (SV->Target) {
       SymbolTarget const &T = SV->Target.getValue();
       Symbol.st_value = T.Offset;
-      Symbol.setBindingAndType(linkageToELFBinding(T.Linkage),
-                               sectionToSymbolType(T.Section->getType()));
+      auto const ST = sectionToSymbolType(T.Section->getType());
+      assert(SV->IsTLS == (ST == llvm::ELF::STT_TLS));
+      Symbol.setBindingAndType(linkageToELFBinding(T.Linkage), ST);
       // The section (header table index) in which this value is defined.
       Symbol.st_shndx = T.Section->getIndex();
       Symbol.st_size = T.Size;
     } else {
       // There's no definition for this name.
-      Symbol.setBindingAndType(ELF::STB_GLOBAL, ELF::STT_NOTYPE);
+      Symbol.setBindingAndType(ELF::STB_GLOBAL,
+                               SV->IsTLS ? ELF::STT_TLS : ELF::STT_NOTYPE);
       Symbol.st_shndx = ELF::SHN_UNDEF;
     }
 
