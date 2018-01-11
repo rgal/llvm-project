@@ -292,10 +292,9 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
 
   auto const &Attrs = details::SectionAttributes.find(this->getType());
   assert(Attrs != details::SectionAttributes.end());
+  std::string const SectionName = this->dataSectionName(
+      Attrs->second.Name, std::get<1>(Id_) /*Discriminator*/);
   {
-    pstore::address const Discriminator = std::get<1>(Id_);
-    std::string const SectionName =
-        this->dataSectionName(Attrs->second.Name, Discriminator);
     DEBUG(llvm::dbgs() << "section " << SectionName << " index " << Index_
                        << '\n');
 
@@ -326,7 +325,7 @@ OutputIt OutputSection<ELFT>::write(llvm::raw_ostream &OS,
     Elf_Shdr RelaSH;
     zero(RelaSH);
     RelaSH.sh_name = SectionNames.insert(
-        stringToSStringView(this->relocationSectionName(Attrs->second.Name)));
+        stringToSStringView(this->relocationSectionName(SectionName)));
     RelaSH.sh_type = llvm::ELF::SHT_RELA;
     RelaSH.sh_flags = llvm::ELF::SHF_INFO_LINK |
                       GroupFlag; // sh_info holds index of the target section.
