@@ -303,25 +303,25 @@ SpecialNames::findString(pstore::index::name_index const &NameIndex,
   auto Pos = NameIndex.find(
       pstore::sstring_view<char const *>{str.data(), str.length()});
   return (Pos != NameIndex.end()) ? Pos.get_address() : pstore::address::null();
-    }
+}
 
-    } // anonymous namespace
+} // anonymous namespace
 
-    static ELFSectionType getELFSectionType(pstore::repo::section_type T,
-                                            pstore::address Name,
-                                            SpecialNames const &Magics) {
-      if (Name == Magics.CtorName) {
-        return ELFSectionType::InitArray;
-      } else if (Name == Magics.DtorName) {
-        return ELFSectionType::FiniArray;
-      }
+static ELFSectionType getELFSectionType(pstore::repo::section_type T,
+                                        pstore::address Name,
+                                        SpecialNames const &Magics) {
+  if (Name == Magics.CtorName) {
+    return ELFSectionType::InitArray;
+  } else if (Name == Magics.DtorName) {
+    return ELFSectionType::FiniArray;
+  }
 
 #define X(a)                                                                   \
   case (pstore::repo::section_type::a):                                        \
     return (ELFSectionType::a);
-      switch (T) { PSTORE_REPO_SECTION_TYPES }
+  switch (T) { PSTORE_REPO_SECTION_TYPES }
 #undef X
-      llvm_unreachable("getELFSectionType: unknown repository section kind.");
+  llvm_unreachable("getELFSectionType: unknown repository section kind.");
 }
 
 raw_ostream &operator<<(raw_ostream &OS, pstore::index::digest const &Digest) {

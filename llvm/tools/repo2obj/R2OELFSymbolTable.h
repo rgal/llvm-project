@@ -28,8 +28,10 @@ public:
 
   struct SymbolTarget {
     /// \param Section_  The ELF output section in which the symbol's data
-    /// resides. \param Offset_  The offset within Section which contains the
-    /// first byte of the object. \param Size_  The object's size (in bytes).
+    /// resides.
+    /// \param Offset_  The offset within Section which contains the first byte
+    /// of the object.
+    /// \param Size_  The object's size (in bytes).
     /// \param Linkage_  The symbol's linkage.
     SymbolTarget(OutputSection<ELFT> const *Section_, std::uint64_t Offset_,
                  std::uint64_t Size_, pstore::repo::linkage_type Linkage_)
@@ -75,18 +77,22 @@ public:
   /// \param Name  The symbol name.
   /// \param Section  The ELF output section in which the symbol's data resides.
   /// \param Offset  The offset within Section which contains the first byte of
-  /// the object. \param Size  The object's size (in bytes). \param Linkage  The
-  /// symbol's linkage. \returns A pointer to the newly created or pre-existing
-  /// entry for this name in the symbol table.
+  /// the object.
+  /// \param Size  The object's size (in bytes).
+  /// \param Linkage  The symbol's linkage.
+  /// \returns A pointer to the newly created or pre-existing entry for this
+  /// name in the symbol table.
   Value *insertSymbol(SString Name, OutputSection<ELFT> const *Section,
                       std::uint64_t Offset, std::uint64_t Size,
                       pstore::repo::linkage_type Linkage);
 
   /// If not already in the symbol table, an undef entry is created. This may be
   /// later turned into a proper definition by a subsequent call to insertSymbol
-  /// with the same name. \param Name  The symbol name. \param Type  The symbol
-  /// relocation type. \returns A pointer to the newly created or pre-existing
-  /// entry for this name in the symbol table.
+  /// with the same name.
+  /// \param Name  The symbol name.
+  /// \param Type  The symbol relocation type.
+  /// \returns A pointer to the newly created or pre-existing entry for this
+  /// name in the symbol table.
   Value *insertSymbol(SString Name, pstore::repo::relocation_type Type);
 
   /// \returns A tuple of two values, the first of which is the file offset at
@@ -96,8 +102,8 @@ public:
   write(llvm::raw_ostream &OS, std::vector<Value *> const &OrderedSymbols);
 
   /// As a side effect, sets the Index field on the symbol entries to allow the
-  /// index of any symbol to be quickly discovered. \note Don't insert any
-  /// symbols after calling this function!
+  /// index of any symbol to be quickly discovered.
+  /// \note Don't insert any symbols after calling this function!
   std::vector<Value *> sort();
 
   static unsigned firstNonLocal(std::vector<Value *> const &OrderedSymbols);

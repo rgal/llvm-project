@@ -98,11 +98,13 @@ public:
   /// header table entries.
   ///
   /// \tparam OutputIt  An output iterator to which will be written one or more
-  /// instance of the Elf_Shdr type. \param OS The binary output stream to which
-  /// the contents of the output sections are written. \param SectionNames  The
-  /// collection of section names. \param OutShdr  An output iterator to which
-  /// will be written one or more instance of the Elf_Shdr type as the write
-  /// function creates sections in the output.
+  /// instance of the Elf_Shdr type.
+  /// \param OS The binary output stream to which the contents of the output
+  /// sections are written.
+  /// \param SectionNames  The collection of section names.
+  /// \param OutShdr  An output iterator to which will be written one or more
+  /// instance of the Elf_Shdr type as the write function creates sections in
+  /// the output.
   template <typename OutputIt>
   OutputIt write(llvm::raw_ostream &OS, StringTable &SectionNames,
                  OutputIt OutShdr) const;
@@ -115,7 +117,7 @@ public:
   void setIndex(unsigned Index) {
     assert(Index != UnknownIndex && Index_ == UnknownIndex);
     Index_ = Index;
-    }
+  }
 
 private:
   pstore::database const &Db_;
@@ -156,13 +158,13 @@ private:
   template <typename T> static T alignedBytes(T v, uint8_t align_shift) {
     auto align = T{1} << align_shift;
     return (align - T{1}) & ~(align - T{1});
-    }
+  }
 
-    static void writePadding(llvm::raw_ostream &OS, unsigned bytes);
+  static void writePadding(llvm::raw_ostream &OS, unsigned bytes);
 
-    std::string dataSectionName(std::string SectionName,
-                                pstore::address DiscriminatorName) const;
-    std::string relocationSectionName(std::string const &BaseName) const;
+  std::string dataSectionName(std::string SectionName,
+                              pstore::address DiscriminatorName) const;
+  std::string relocationSectionName(std::string const &BaseName) const;
 };
 
 // FIXME: this needs to be passeed in and not hard-wired.
