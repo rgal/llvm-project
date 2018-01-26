@@ -4385,7 +4385,7 @@ CodeGenModule::GetAddrOfConstantCFString(const StringLiteral *Literal) {
     GV->setSection("__DATA,__cfstring");
     break;
   case llvm::Triple::Repo:
-    report_fatal_error ("CFString is not yet supported by the Repo");
+    llvm::report_fatal_error ("CFString is not yet supported by the Repo");
   }
   Entry.second = GV;
 
