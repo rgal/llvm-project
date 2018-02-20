@@ -2221,6 +2221,7 @@ static void writeTicketNode(raw_ostream &Out, const TicketNode *DN,
   Printer.printMetadata("digest", DN->getDigestAsMD(),
                         /* ShouldSkipNull */ false);
   Printer.printLinkage(DN->getLinkage());
+  Printer.printBool("pruned", DN->getPruned());
   Out << ")";
 }
 
