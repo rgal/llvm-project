@@ -33,6 +33,7 @@
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -54,8 +55,8 @@
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <cassert>
@@ -865,7 +866,15 @@ void TargetLoweringObjectFileRepo::Initialize(MCContext &Ctx,
 static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
                                                  const GlobalObject *GO,
                                                  SectionKind Kind) {
-  Digest::DigestType const Digest = Digest::get(GO);
+  const std::pair<Digest::DigestType, bool> Result = Digest::get(GO);
+  if (Result.second) {
+    // Add new created digest to the TicketNodes.
+    assert(!GO->getMetadata(LLVMContext::MD_repo_ticket) &&
+           "TicketNode should be NULL!");
+    MDBuilder MDB(GO->getParent()->getContext());
+    Ctx.addTicketNode(
+        MDB.createTicketNode(GO->getName(), Result.first, GO->getLinkage()));
+  }
 
   // Repo: the repo sections are keyed off the global value. This gets us the
   // associated hash.
@@ -900,7 +909,7 @@ static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
     llvm_unreachable("selectRepoSectionForGlobal: unknown section type");
   }
 
-  return Ctx.getRepoSection(K, Digest);
+  return Ctx.getRepoSection(K, Result.first);
 }
 
 MCSection *TargetLoweringObjectFileRepo::getExplicitSectionGlobal(
