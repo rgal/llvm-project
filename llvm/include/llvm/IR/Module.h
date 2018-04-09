@@ -191,6 +191,10 @@ private:
 
   friend class Constant;
 
+  // The module hash, which is only used by the RepoTicketGeneration pass.
+  // TODO: Don't want to modify this structure; need a better way.
+  llvm::Optional<MD5::MD5Result> ModuleHash;
+
 /// @}
 /// @name Constructors
 /// @{
@@ -264,6 +268,14 @@ public:
     return getContext().getDiagHandlerPtr()->isAnalysisRemarkEnabled(
         "size-info");
   }
+
+  /// Get the module hash result.
+  const llvm::Optional<MD5::MD5Result> &getModuleHash() const {
+    return ModuleHash;
+  }
+
+  /// Set the module hash.
+  void setModuleHash(MD5::MD5Result &Val) { ModuleHash = Val; }
 
   /// @}
   /// @name Module Level Mutators
