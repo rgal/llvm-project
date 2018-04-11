@@ -1318,7 +1318,7 @@ void Verifier::visitTicketNode(const TicketNode &N) {
 
   auto const AarryType = C->getType();
   auto const Elems = AarryType->getArrayNumElements();
-  Digest::DigestType D;
+  ticketmd::DigestType D;
   Assert(Elems == D.Bytes.max_size(),
          "TicketNode has invalid the digest array size!", &N);
 
