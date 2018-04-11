@@ -122,7 +122,7 @@ protected:
     return cast<Function>(M.getOrInsertFunction(
         Name, FunctionType::get(Type::getVoidTy(Context), None, false)));
   }
-  static Digest::DigestType getDigest() {
+  static ticketmd::DigestType getDigest() {
     return {{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}};
   }
 };
@@ -2476,7 +2476,7 @@ TEST_F(DIImportedEntityTest, get) {
 typedef MetadataTest TicketNodeTest;
 
 TEST_F(TicketNodeTest, get) {
-  Digest::DigestType Digest = getDigest();
+  ticketmd::DigestType Digest = getDigest();
   TicketNode *D = TicketNode::get(Context, "foo", Digest,
                                   GlobalValue::ExternalLinkage, false);
   EXPECT_EQ(GlobalValue::ExternalLinkage, D->getLinkage());
@@ -2487,7 +2487,7 @@ TEST_F(TicketNodeTest, get) {
 }
 
 TEST_F(TicketNodeTest, getDistinct) {
-  Digest::DigestType Digest = getDigest();
+  ticketmd::DigestType Digest = getDigest();
   TicketNode *L0 = TicketNode::getDistinct(
       Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
   EXPECT_TRUE(L0->isDistinct());
@@ -2501,7 +2501,7 @@ TEST_F(TicketNodeTest, getDistinct) {
 }
 
 TEST_F(TicketNodeTest, getTemporary) {
-  Digest::DigestType Digest = getDigest();
+  ticketmd::DigestType Digest = getDigest();
   auto L = TicketNode::getTemporary(
       Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
   EXPECT_TRUE(L->isTemporary());
@@ -2509,7 +2509,7 @@ TEST_F(TicketNodeTest, getTemporary) {
 }
 
 TEST_F(TicketNodeTest, cloneTemporary) {
-  Digest::DigestType Digest = getDigest();
+  ticketmd::DigestType Digest = getDigest();
   auto L = TicketNode::getTemporary(
       Context, "foo", Digest, GlobalValue::LinkageTypes::InternalLinkage, true);
   EXPECT_TRUE(L->isTemporary());
