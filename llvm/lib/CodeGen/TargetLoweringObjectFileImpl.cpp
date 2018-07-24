@@ -50,13 +50,14 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolELF.h"
+#include "llvm/MC/MCSymbolRepo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <cassert>
@@ -848,13 +849,13 @@ MCSection *TargetLoweringObjectFileRepo::createXXtorsSection(MCContext &Ctx,
   auto CtorsPos =
       std::find_if(std::begin(Tickets), End,
                    [Name](const MCContext::RepoTicketContainer::value_type &P) {
-                     return P.first->getNameAsString() == Name;
+                     return P->getNameAsString() == Name;
                    });
   if (CtorsPos == End) {
     return nullptr;
   }
   return Ctx.getRepoSection(MCContext::RepoSection::ReadOnlySection,
-                            (*CtorsPos).first->getDigest());
+                            (*CtorsPos)->getDigest());
 }
 
 void TargetLoweringObjectFileRepo::Initialize(MCContext &Ctx,
@@ -866,16 +867,18 @@ void TargetLoweringObjectFileRepo::Initialize(MCContext &Ctx,
 
 static MCSectionRepo *selectRepoSectionForGlobal(MCContext &Ctx,
                                                  const GlobalObject *GO,
-                                                 SectionKind Kind) {
+                                                 SectionKind Kind,
+                                                 MCSymbolRepo *Sym) {
   const std::pair<ticketmd::DigestType, bool> Result = ticketmd::get(GO);
   if (Result.second) {
     // Add new created digest to the TicketNodes.
     assert(!GO->getMetadata(LLVMContext::MD_repo_ticket) &&
            "TicketNode should be NULL!");
     MDBuilder MDB(GO->getParent()->getContext());
-    Ctx.addTicketNode(
-        MDB.createTicketNode(GO->getName(), Result.first, GO->getLinkage()),
-        true /* Created by LLVM backend? */);
+    auto TN =
+        MDB.createTicketNode(GO->getName(), Result.first, GO->getLinkage());
+    Ctx.addTicketNode(TN);
+    Sym->CorrespondingTicketNode = TN;
   }
 
   // Repo: the repo sections are keyed off the global value. This gets us the
@@ -921,12 +924,14 @@ MCSection *TargetLoweringObjectFileRepo::getExplicitSectionGlobal(
 
   // TODO: map this named section to a section ID? What happens if there's no
   // match?
-  return selectRepoSectionForGlobal(getContext(), GO, Kind);
+  return selectRepoSectionForGlobal(getContext(), GO, Kind,
+                                    cast<MCSymbolRepo>(TM.getSymbol(GO)));
 }
 
 MCSection *TargetLoweringObjectFileRepo::SelectSectionForGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
-  return selectRepoSectionForGlobal(getContext(), GO, Kind);
+  return selectRepoSectionForGlobal(getContext(), GO, Kind,
+                                    cast<MCSymbolRepo>(TM.getSymbol(GO)));
 }
 
 /// Given a mergeable constant with the specified size and relocation
@@ -935,7 +940,9 @@ MCSection *TargetLoweringObjectFileRepo::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C, unsigned &Align,
     const GlobalObject *GO) const {
   assert(GO && "Invalid global object!");
-  return selectRepoSectionForGlobal(getContext(), GO, Kind);
+  return selectRepoSectionForGlobal(
+      getContext(), GO, Kind,
+      cast<MCSymbolRepo>(getContext().lookupSymbol(GO->getName())));
 }
 
 //===----------------------------------------------------------------------===//

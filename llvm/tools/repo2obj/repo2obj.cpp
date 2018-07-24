@@ -9,6 +9,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCRepoTicketFile.h"
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Object/Binary.h"
@@ -282,7 +283,11 @@ getELFSectionType(pstore::repo::section_type T,
 #define X(a)                                                                   \
   case (pstore::repo::section_type::a):                                        \
     return (ELFSectionType::a);
-  switch (T) { PSTORE_REPO_SECTION_TYPES }
+  switch (T) {
+    PSTORE_REPO_SECTION_TYPES
+  case pstore::repo::section_type::last:
+    break;
+  }
 #undef X
   llvm_unreachable("getELFSectionType: unknown repository section kind.");
 }
@@ -301,6 +306,7 @@ static std::string getRepoPath() {
 raw_ostream &operator<<(raw_ostream &OS, pstore::index::digest const &Digest) {
   return OS << Digest.to_hex_string();
 }
+
 
 int main(int argc, char *argv[]) {
   cl::ParseCommandLineOptions(argc, argv);
@@ -381,7 +387,7 @@ int main(int argc, char *argv[]) {
         assert(Name.is_in_store());
 
         if (Fragment->num_sections() != 1U ||
-            !Fragment->has_section(pstore::repo::section_type::bss)) {
+            !Fragment->has_fragment(pstore::repo::fragment_type::bss)) {
 
           pstore::shared_sstring_view Owner;
           error("Fragment for common symbol \"" +
@@ -389,7 +395,7 @@ int main(int argc, char *argv[]) {
                 "\" did not contain a sole BSS section");
         }
         pstore::repo::section const &S =
-            (*Fragment)[pstore::repo::section_type::bss];
+            Fragment->at<pstore::repo::fragment_type::bss>();
 
         State.Symbols.insertSymbol(Name, nullptr /*no output section*/,
                                    0 /*offset*/, S.data().size(), TM.linkage);
@@ -397,7 +403,14 @@ int main(int argc, char *argv[]) {
       }
       // Go through the sections that this fragment contains creating the
       // corresponding ELF section(s) as necessary.
-      for (pstore::repo::section_type SectionType : *Fragment) {
+      auto SectionRange = make_filter_range(
+          make_range(
+              pstore::repo::fragment::const_iterator(std::begin(*Fragment)),
+              pstore::repo::fragment::const_iterator(std::end(*Fragment))),
+          pstore::repo::is_section_type);
+      for (pstore::repo::fragment_type Section : SectionRange) {
+        auto SectionType = static_cast<pstore::repo::section_type>(Section);
+
         // The section type and "discriminator" together identify the ELF output
         // section to which this fragment's section data will be appended.
         auto const Id = std::make_tuple(
@@ -436,19 +449,18 @@ int main(int argc, char *argv[]) {
         // to alignedContributionSize()).
         OutputSections[static_cast<unsigned>(SectionType)] =
             OutputSection<ELFT>::SectionInfo(
-                OSection, OSection->alignedContributionSize(
-                              (*Fragment)[SectionType].align()));
+                OSection,
+                OSection->alignedContributionSize(
+                    pstore::repo::section_align(*Fragment, SectionType)));
       }
 
       // This can't currently be folded into the first loop because the need the
       // OutputSections array to be built.
-      for (pstore::repo::section_type SectionType : *Fragment) {
-        pstore::repo::section const &Section = (*Fragment)[SectionType];
+      for (pstore::repo::fragment_type Section : SectionRange) {
+        auto SectionType = static_cast<pstore::repo::section_type>(Section);
         OutputSections[static_cast<unsigned>(SectionType)].section()->append(
-            TM,
-            SectionPtr{std::static_pointer_cast<void const>(Fragment),
-                       &Section},
-            State.Symbols, State.Generated, OutputSections);
+            TM, Fragment, SectionType, State.Symbols, State.Generated,
+            OutputSections);
       }
     }
   }
