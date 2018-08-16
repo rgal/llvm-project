@@ -429,7 +429,7 @@ OutputSection<ELFT>::write(llvm::raw_ostream &OS, StringTable &SectionNames,
     auto Fragment = Contribution.first;
     auto Type = Contribution.second;
 
-    pstore::repo::section::container<std::uint8_t> D =
+    pstore::repo::container<std::uint8_t> D =
         pstore::repo::section_value(*Fragment, Type);
 
     assert(Align_ >= pstore::repo::section_align(*Fragment, Type));
