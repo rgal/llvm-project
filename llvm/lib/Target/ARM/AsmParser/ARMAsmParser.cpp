@@ -5559,6 +5559,7 @@ bool ARMAsmParser::parsePrefix(ARMMCExpr::VariantKind &RefKind) {
     ELF = (1 << MCObjectFileInfo::IsELF),
     MACHO = (1 << MCObjectFileInfo::IsMachO),
     WASM = (1 << MCObjectFileInfo::IsWasm),
+    Repo = (1 << MCObjectFileInfo::IsRepo),
   };
   static const struct PrefixEntry {
     const char *Spelling;
@@ -5594,6 +5595,9 @@ bool ARMAsmParser::parsePrefix(ARMMCExpr::VariantKind &RefKind) {
     break;
   case MCObjectFileInfo::IsWasm:
     CurrentFormat = WASM;
+    break;
+  case MCObjectFileInfo::IsRepo:
+    CurrentFormat = Repo;
     break;
   }
 
