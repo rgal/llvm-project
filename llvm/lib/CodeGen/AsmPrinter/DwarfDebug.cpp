@@ -959,20 +959,20 @@ void DwarfDebug::endModule() {
     emitDebugLoc();
 
   // Corresponding abbreviations into a abbrev section.
-  emitAbbreviations();
+  //  emitAbbreviations();
 
   // Emit all the DIEs into a debug info section.
-  emitDebugInfo();
+  //  emitDebugInfo();
 
   // Emit info into a debug aranges section.
-  if (GenerateARangeSection)
-    emitDebugARanges();
+  //  if (GenerateARangeSection)
+  //    emitDebugARanges();
 
   // Emit info into a debug ranges section.
-  emitDebugRanges();
+  //  emitDebugRanges();
 
   // Emit info into a debug macinfo section.
-  emitDebugMacinfo();
+  //  emitDebugMacinfo();
 
   if (useSplitDwarf()) {
     emitDebugStrDWO();
@@ -1002,7 +1002,7 @@ void DwarfDebug::endModule() {
   }
 
   // Emit the pubnames and pubtypes sections if requested.
-  emitDebugPubSections();
+  //  emitDebugPubSections();
 
   // clean up.
   // FIXME: AbstractVariables.clear();
