@@ -437,6 +437,8 @@ namespace llvm {
     MCSectionRepo *getRepoSection(RepoSection K, StringRef Name,
                                   ticketmd::DigestType const &Digest);
 
+    MCSectionRepo *getRepoSection(RepoSection K);
+
     MCSectionELF *getELFSection(const Twine &Section, unsigned Type,
                                 unsigned Flags) {
       return getELFSection(Section, Type, Flags, 0, "");
