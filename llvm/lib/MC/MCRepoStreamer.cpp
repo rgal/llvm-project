@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCRepoStreamer.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/MC/MCCodeEmitter.h"
@@ -57,10 +58,13 @@ void MCRepoStreamer::EmitInstToData(const MCInst &Inst, const MCSubtargetInfo &S
 }
 
 
-MCStreamer *llvm::createRepoStreamer (MCContext &Context, MCAsmBackend &MAB,
-                                    raw_pwrite_stream &OS, MCCodeEmitter *CE) {
+MCStreamer *llvm::createRepoStreamer (MCContext &Context,
+                                      std::unique_ptr<MCAsmBackend> &&MAB,
+                                      std::unique_ptr<MCObjectWriter> &&OW,
+                                      std::unique_ptr<MCCodeEmitter> &&CE) {
 
-  MCRepoStreamer * S = new MCRepoStreamer (Context, MAB, OS, CE);
+  MCRepoStreamer * S = new MCRepoStreamer (Context, std::move(MAB),
+                                           std::move(OW), std::move(CE));
   return S;
 }
 
@@ -726,7 +730,7 @@ void MCELFStreamer::EndCOFFSymbolDef() {
 }
 
 void MCELFStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                 uint64_t Size, unsigned ByteAlignment) {
+                                 uint64_t Size, unsigned ByteAlignment, SMLoc Loc) {
   llvm_unreachable("ELF doesn't support this directive");
 }
 

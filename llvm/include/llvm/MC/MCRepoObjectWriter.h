@@ -12,8 +12,8 @@
 
 #include "llvm/ADT/Triple.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/DataTypes.h"
-#include "llvm/Support/ELF.h"
 #include "llvm/Support/raw_ostream.h"
 #include <vector>
 

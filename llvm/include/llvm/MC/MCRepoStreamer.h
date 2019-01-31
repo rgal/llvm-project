@@ -23,13 +23,15 @@ class MCAssembler;
 class MCCodeEmitter;
 class MCExpr;
 class MCInst;
-class raw_ostream;
+class MCObjectWriter;
 
 class MCRepoStreamer : public MCObjectStreamer {
 public:
-  MCRepoStreamer(MCContext &Context, MCAsmBackend &TAB, raw_pwrite_stream &OS,
-                MCCodeEmitter *Emitter)
-      : MCObjectStreamer(Context, TAB, OS, Emitter) {}
+  MCRepoStreamer(MCContext &Context,
+                 std::unique_ptr<MCAsmBackend> TAB,
+                 std::unique_ptr<MCObjectWriter> OW,
+                 std::unique_ptr<MCCodeEmitter> Emitter)
+      : MCObjectStreamer(Context, TAB, OW, Emitter) {}
 
   ~MCRepoStreamer() override;
 
@@ -61,7 +63,7 @@ public:
 
 //  void EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size, unsigned ByteAlignment) override;
 
-  void EmitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr, uint64_t Size = 0, unsigned ByteAlignment = 0) override;
+  void EmitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr, uint64_t Size = 0, unsigned ByteAlignment = 0, SMLoc L = SMLoc()) override;
 //  void EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol, uint64_t Size, unsigned ByteAlignment = 0) override;
 //  void EmitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc()) override;
 
