@@ -573,7 +573,7 @@ void FunctionHashCalculator::hashFunction() {
     FnHash.hashValue(BB);
     hashBasicBlock(BB, DIFMap);
 
-    const TerminatorInst *Term = BB->getTerminator();
+    const Instruction *Term = BB->getTerminator();
     for (unsigned I = 0, E = Term->getNumSuccessors(); I != E; ++I) {
       if (!VisitedBBs.insert(Term->getSuccessor(I)).second)
         continue;
