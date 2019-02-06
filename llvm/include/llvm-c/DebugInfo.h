@@ -161,7 +161,8 @@ enum {
   LLVMDIObjCPropertyMetadataKind,
   LLVMDIImportedEntityMetadataKind,
   LLVMDIMacroMetadataKind,
-  LLVMDIMacroFileMetadataKind
+  LLVMDIMacroFileMetadataKind,
+  LLVMTicketNodeMetadataKind
 };
 typedef unsigned LLVMMetadataKind;
 
