@@ -53,6 +53,8 @@ subdirectories =
  llvm-split
  llvm-undname
  opt
+ repo2obj
+ repo-ticket-dump
  verify-uselistorder
 
 [component_0]
